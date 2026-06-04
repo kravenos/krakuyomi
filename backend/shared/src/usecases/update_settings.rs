@@ -25,6 +25,14 @@ pub fn update_settings(
     Ok(())
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn default_false() -> bool {
+    false
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct UpdateableSettings {
     chapter_sorting_mode: ChapterSortingMode,
@@ -39,6 +47,10 @@ pub struct UpdateableSettings {
     optimize_image: bool,
     library_view_mode: LibraryViewMode,
     search_view_mode: SearchViewMode,
+    #[serde(default = "default_true")]
+    delete_downloaded_on_remove: bool,
+    #[serde(default = "default_false")]
+    delete_downloaded_after_read: bool,
 }
 
 impl UpdateableSettings {
@@ -56,6 +68,8 @@ impl UpdateableSettings {
         settings.optimize_image = self.optimize_image;
         settings.library_view_mode = self.library_view_mode;
         settings.search_view_mode = self.search_view_mode;
+        settings.delete_downloaded_on_remove = self.delete_downloaded_on_remove;
+        settings.delete_downloaded_after_read = self.delete_downloaded_after_read;
     }
 }
 
@@ -76,6 +90,8 @@ impl From<&Settings> for UpdateableSettings {
             optimize_image: value.optimize_image,
             library_view_mode: value.library_view_mode,
             search_view_mode: value.search_view_mode,
+            delete_downloaded_on_remove: value.delete_downloaded_on_remove,
+            delete_downloaded_after_read: value.delete_downloaded_after_read,
         }
     }
 }

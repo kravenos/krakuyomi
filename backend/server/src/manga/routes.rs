@@ -31,6 +31,7 @@ fn path_to_file_url(path: &std::path::Path) -> Option<url::Url> {
 pub fn routes() -> Router<State> {
     Router::new()
         .route("/library", get(get_manga_library))
+        .route("/storage-stats", get(get_storage_stats))
         .route("/find-orphan-or-read-files", get(find_orphan_or_read_files))
         .route("/delete-file", post(delete_file))
         .route("/sync-database", post(sync_database))
@@ -132,6 +133,21 @@ async fn get_manga_library(
     Ok(Json(
         mangas.into_iter().map(Manga::from).collect::<Vec<_>>(),
     ))
+}
+
+async fn get_storage_stats(
+    StateExtractor(State {
+        database,
+        chapter_storage,
+        ..
+    }): StateExtractor<State>,
+) -> Result<Json<usecases::get_storage_stats::StorageStats>, AppError> {
+    let database = database.lock().await;
+    let chapter_storage = chapter_storage.lock().await;
+
+    let stats = usecases::get_storage_stats(&database, &chapter_storage).await?;
+
+    Ok(Json(stats))
 }
 
 async fn find_orphan_or_read_files(
@@ -453,13 +469,20 @@ async fn handle_source_notification(
 }
 
 async fn remove_manga_from_library(
-    StateExtractor(State { database, .. }): StateExtractor<State>,
+    StateExtractor(State {
+        database,
+        chapter_storage,
+        settings,
+        ..
+    }): StateExtractor<State>,
     Path(params): Path<MangaChaptersPathParams>,
 ) -> Result<Json<()>, AppError> {
     let manga_id = MangaId::from(params);
     let database = database.lock().await;
+    let chapter_storage = chapter_storage.lock().await;
+    let settings = settings.lock().await;
 
-    usecases::remove_manga_from_library(&database, manga_id).await?;
+    usecases::remove_manga_from_library(&database, &chapter_storage, &settings, manga_id).await?;
 
     Ok(Json(()))
 }
@@ -565,6 +588,7 @@ async fn mark_chapters_as_read(
     StateExtractor(State {
         database,
         chapter_storage,
+        settings,
         ..
     }): StateExtractor<State>,
     Path(params): Path<MangaChaptersPathParams>,
@@ -573,10 +597,17 @@ async fn mark_chapters_as_read(
     let manga_id = MangaId::from(params);
     let database = database.lock().await;
     let chapter_storage = &*chapter_storage.lock().await;
+    let settings = settings.lock().await;
 
-    let count =
-        usecases::mark_chapters_as_read(&database, chapter_storage, manga_id, &range, state)
-            .await?;
+    let count = usecases::mark_chapters_as_read(
+        &database,
+        chapter_storage,
+        &settings,
+        manga_id,
+        &range,
+        state,
+    )
+    .await?;
 
     Ok(Json(count))
 }
@@ -650,15 +681,23 @@ struct MarkChapterAsReadBody {
     state: Option<bool>,
 }
 async fn mark_chapter_as_read(
-    StateExtractor(State { database, .. }): StateExtractor<State>,
+    StateExtractor(State {
+        database,
+        chapter_storage,
+        settings,
+        ..
+    }): StateExtractor<State>,
     SourceExtractor(_source): SourceExtractor,
     Path(params): Path<DownloadMangaChapterParams>,
     Json(MarkChapterAsReadBody { state }): Json<MarkChapterAsReadBody>,
 ) -> Result<Json<()>, AppError> {
     let chapter_id = ChapterId::from(params);
     let database = database.lock().await;
+    let chapter_storage = chapter_storage.lock().await;
+    let settings = settings.lock().await;
 
-    usecases::mark_chapter_as_read(&database, &chapter_id, state).await?;
+    usecases::mark_chapter_as_read(&database, &chapter_storage, &settings, &chapter_id, state)
+        .await?;
 
     Ok(Json(()))
 }
