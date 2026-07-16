@@ -1,3 +1,21 @@
+# [1.39.0](https://github.com/kravenos/krakuyomi/compare/v1.38.0...v1.39.0) (2026-07-16)
+
+
+### Bug Fixes
+
+* **database:** explicit i64 override for total_chapters_count subquery ([29986fc](https://github.com/kravenos/krakuyomi/commit/29986fca34301ce359a185fd7456aa423a874bab))
+* **database:** explicit type overrides for computed library/playlist columns ([dbd66ca](https://github.com/kravenos/krakuyomi/commit/dbd66cadffd5fe8dfe9532d40b2dba4b86a1bfd7))
+* **database:** order unread sorting variants by the aggregate expression ([510d95d](https://github.com/kravenos/krakuyomi/commit/510d95dacf0ec86bd4458a87cafdc134166126af))
+* **database:** tolerate applied migrations missing from the source tree ([1762610](https://github.com/kravenos/krakuyomi/commit/176261011ab3eead1158c75777ce845521f91894))
+* **settings:** stop top-zone gesture from hijacking setting row taps ([f041aaf](https://github.com/kravenos/krakuyomi/commit/f041aafc3e4d34194f92f7d0733d264673b85e50))
+
+
+### Features
+
+* library UX improvements, auto-delete, storage stats, reader prefs ([b284d40](https://github.com/kravenos/krakuyomi/commit/b284d40ce855c207b7b90c3bbff08b4ee957e1b7))
+* **library:** read/total chapter badge in grid mode; settings value cleanup ([01ed045](https://github.com/kravenos/krakuyomi/commit/01ed045a0cf9fb9425571789db5f02e9f42dc0e5))
+* **library:** show total downloaded size in library menu ([75536dc](https://github.com/kravenos/krakuyomi/commit/75536dcfab69a96f717282d74171a565fe8eef5f))
+
 # [1.33.0](https://github.com/kravenos/krakuyomi/compare/v1.32.0...v1.33.0) (2026-07-16)
 
 
