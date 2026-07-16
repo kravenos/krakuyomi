@@ -125,15 +125,23 @@ function SettingItemValue:createValueWidget()
       max_width = self.max_width,
     }
   elseif self.value_definition.type == "string" then
+    local value = self:getCurrentValue()
+    if value == nil or value == "" then
+      value = _("Not set")
+    end
     return TextWidget:new {
-      text = self:getCurrentValue() or "<empty>",
+      text = value .. " " .. Icons.UNICODE_ARROW_RIGHT,
       editable = true,
       face = Font:getFace("cfont", SETTING_ITEM_FONT_SIZE),
       max_width = self.max_width,
     }
   elseif self.value_definition.type == "list" then
+    local value = table.concat(self:getCurrentValue() or {}, "\n")
+    if value == "" then
+      value = _("Not set")
+    end
     return TextWidget:new {
-      text = table.concat(self:getCurrentValue() or {}, "\n") or "<empty>",
+      text = value,
       editable = true,
       face = Font:getFace("cfont", SETTING_ITEM_FONT_SIZE),
       max_width = self.max_width,
@@ -348,6 +356,11 @@ function SettingItemValue:onTap()
     })
     UIManager:show(path_chooser)
   end
+
+  -- Consume the tap: otherwise it keeps bubbling up to the containing view,
+  -- whose top-zone gesture handler may open the KOReader menu on top of the
+  -- dialog we just showed.
+  return true
 end
 
 --- @private
