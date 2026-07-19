@@ -33,6 +33,7 @@ local UpdateChecker = require("UpdateChecker")
 local calcLastReadText = require("utils/calcLastReadText")
 local findEntries = require("utils/findEntries")
 local findLastRead = require("utils/findLastRead")
+local formatBytes = require("utils/formatBytes")
 local getChapterDisplayName = require("utils/getChapterDisplayName")
 local filterChaptersByLang = require("utils/filterChaptersByLang")
 local md5 = require("ffi/sha2").md5
@@ -1171,7 +1172,17 @@ function LibraryView:openMenu()
     },
   }
 
+  -- Best effort: show the total downloaded size as the menu title. Degrades
+  -- silently (no title) if the backend doesn't return it.
+  local title
+  local stats = Backend.getStorageStats()
+  if stats.type == 'SUCCESS' and stats.body and (stats.body.total_bytes or 0) > 0 then
+    title = Icons.FA_DOWNLOAD .. " " .. _("Total downloaded") .. ": " .. formatBytes(stats.body.total_bytes)
+  end
+
   dialog = ButtonDialog:new {
+    title = title,
+    title_align = "center",
     buttons = buttons,
   }
 
