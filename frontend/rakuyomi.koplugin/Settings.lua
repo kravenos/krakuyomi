@@ -207,6 +207,32 @@ Settings.setting_value_definitions = {
     { type = 'divider', title = _("Reader") }
   },
   {
+    'rakuyomi_reading_direction',
+    {
+      type = 'enum',
+      title = _("Reading direction"),
+      options = {
+        { label = _("Left to right"), value = "ltr" },
+        { label = _("Right to left"), value = "rtl" },
+      },
+      default = "ltr",
+      is_local = true,
+    }
+  },
+  {
+    'rakuyomi_page_turn_style',
+    {
+      type = 'enum',
+      title = _("Page turn style"),
+      options = {
+        { label = _("Paginated"),         value = "paginated" },
+        { label = _("Continuous scroll"), value = "scroll" },
+      },
+      default = "paginated",
+      is_local = true,
+    }
+  },
+  {
     'chapter_sorting_mode',
     {
       type = 'enum',
