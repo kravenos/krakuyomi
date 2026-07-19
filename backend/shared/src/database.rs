@@ -44,6 +44,16 @@ const BIND_LIMIT: usize = 32766;
 
 // FIXME add proper error handling
 impl Database {
+    /// Returns the migrator used for every database connection (startup and
+    /// hot replacement). Migrations recorded in the database that no longer
+    /// exist in the source tree (e.g. leftovers from development builds) are
+    /// ignored; checksum validation of known migrations still applies.
+    fn migrator() -> sqlx::migrate::Migrator {
+        let mut migrator = sqlx::migrate!();
+        migrator.set_ignore_missing(true);
+        migrator
+    }
+
     pub async fn new(filename: &Path) -> Result<Self> {
         let options = SqliteConnectOptions::new()
             .filename(filename)
@@ -62,7 +72,7 @@ impl Database {
             .connect_with(options)
             .await?;
 
-        sqlx::migrate!().run(&pool).await?;
+        Self::migrator().run(&pool).await?;
 
         Ok(Self {
             pool: Arc::new(RwLock::new(pool)),
@@ -126,7 +136,7 @@ impl Database {
         };
 
         // Run migrations on the new pool
-        let migration_result = sqlx::migrate!().run(&new_pool).await;
+        let migration_result = Self::migrator().run(&new_pool).await;
 
         // If migrations fail, restore backup
         if let Err(e) = migration_result {
