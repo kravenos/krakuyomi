@@ -374,10 +374,32 @@ function LibraryView:patchTitleBar(count_notify)
   end
 end
 
+--- Filters out fully-read mangas when the "hide read manga" preference is on.
+--- @private
+--- @param mangas Manga[]
+--- @return Manga[]
+function LibraryView:_applyHideReadFilter(mangas)
+  if not G_reader_settings:isTrue("rakuyomi_hide_read_manga") then
+    return mangas
+  end
+
+  local filtered = {}
+  for _, manga in ipairs(mangas) do
+    -- Keep mangas with unread chapters, or whose unread count is unknown.
+    if not (manga.unread_chapters_count ~= nil and manga.unread_chapters_count == 0) then
+      table.insert(filtered, manga)
+    end
+  end
+
+  return filtered
+end
+
 --- @private
 function LibraryView:updateItems()
-  if #self.mangas > 0 then
-    self.item_table = self:generateItemTableFromMangas(self.mangas)
+  local mangas = self:_applyHideReadFilter(self.mangas)
+
+  if #mangas > 0 then
+    self.item_table = self:generateItemTableFromMangas(mangas)
     self.multilines_show_more_text = false
     self.items_per_page = nil
   else
@@ -895,6 +917,21 @@ function LibraryView:openMenu()
         callback = function()
           UIManager:close(dialog)
           self:openPlaylistDialog()
+        end
+      },
+    },
+    {
+      {
+        text = (G_reader_settings:isTrue("rakuyomi_hide_read_manga")
+          and (Icons.FA_CHECK .. " " .. _("Show fully read manga"))
+          or (Icons.FA_BOOK .. " " .. _("Hide fully read manga"))),
+        callback = function()
+          UIManager:close(dialog)
+
+          local new_value = not G_reader_settings:isTrue("rakuyomi_hide_read_manga")
+          G_reader_settings:saveSetting("rakuyomi_hide_read_manga", new_value)
+
+          self:updateItems()
         end
       },
     },
