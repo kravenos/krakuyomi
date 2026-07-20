@@ -440,6 +440,12 @@ function LibraryView:generateItemTableFromMangas(mangas)
   local item_table = {}
   local is_cover = self:getLibraryViewMode() == "cover"
 
+  -- Which metadata the user wants on each tile (configurable in Settings).
+  local selected = {}
+  for __, key in ipairs(G_reader_settings:readSetting("rakuyomi_tile_metadata", { "last_read", "unread" })) do
+    selected[key] = true
+  end
+
   for _, manga in ipairs(mangas) do
     local mandatory_parts = {}
 
@@ -447,7 +453,7 @@ function LibraryView:generateItemTableFromMangas(mangas)
       table.insert(mandatory_parts, manga.source.name)
     end
 
-    if manga.last_read then
+    if selected.last_read and manga.last_read then
       local text = calcLastReadText(manga.last_read, self:getLibraryViewMode() ~= "base")
       if not is_cover then
         text = text .. " "
@@ -455,12 +461,26 @@ function LibraryView:generateItemTableFromMangas(mangas)
       table.insert(mandatory_parts, text)
     end
 
-    if manga.unread_chapters_count ~= nil and manga.unread_chapters_count > 0 then
+    if selected.unread and manga.unread_chapters_count ~= nil and manga.unread_chapters_count > 0 then
       local bell = Icons.FA_BELL
       if is_cover then
         bell = bell .. " "
       end
       table.insert(mandatory_parts, bell .. manga.unread_chapters_count)
+    end
+
+    local total = manga.total_chapters_count
+    if (selected.read or selected.total) and total ~= nil then
+      local read = math.max(total - (manga.unread_chapters_count or 0), 0)
+      local text
+      if selected.read and selected.total then
+        text = read .. "/" .. total
+      elseif selected.read then
+        text = Icons.FA_CHECK .. (is_cover and " " or "") .. read
+      else
+        text = Icons.FA_LIST .. (is_cover and " " or "") .. total
+      end
+      table.insert(mandatory_parts, text)
     end
 
     local space = is_cover and "  " .. Icons.DOT .. "  " or ""

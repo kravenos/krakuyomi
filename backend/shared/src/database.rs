@@ -173,6 +173,43 @@ impl Database {
         Ok(rows.into_iter().map(|row| row.manga_id()).collect())
     }
 
+    /// Returns the number of cached chapters per manga, keyed by
+    /// `(source_id, manga_id)`. Scanlator-aware, matching the semantics of
+    /// `unread_chapters_count`. Computed as a single grouped query — no
+    /// per-row subqueries and no filesystem access — so it stays cheap even
+    /// on slow devices.
+    pub async fn get_cached_chapter_counts(&self) -> Result<HashMap<(String, String), usize>> {
+        use sqlx::Row;
+
+        let rows = sqlx::query(
+            r#"
+                SELECT ci.source_id, ci.manga_id, COUNT(*) AS total
+                FROM chapter_informations ci
+                LEFT JOIN manga_state ms
+                    ON ms.source_id = ci.source_id AND ms.manga_id = ci.manga_id
+                WHERE (ms.preferred_scanlator IS NULL
+                    OR ci.scanlator = ms.preferred_scanlator
+                    OR ci.scanlator IS NULL)
+                GROUP BY ci.source_id, ci.manga_id
+            "#,
+        )
+        .fetch_all(&*self.pool.read().await)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.get::<String, _>("source_id"),
+                        row.get::<String, _>("manga_id"),
+                    ),
+                    row.get::<i64, _>("total") as usize,
+                )
+            })
+            .collect())
+    }
+
     pub async fn get_manga_library_and_status(&self) -> Result<Vec<(MangaId, PublishingStatus)>> {
         let rows = sqlx::query!(
             r#"
@@ -970,6 +1007,8 @@ impl Database {
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
+                    // Filled in by the usecase from get_cached_chapter_counts.
+                    total_chapters_count: None,
                     last_read: row.last_read,
                     in_library: true,
                     state_viewer: row.state_viewer != 0,
@@ -3246,6 +3285,8 @@ impl Database {
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
+                    // Filled in by the usecase from get_cached_chapter_counts.
+                    total_chapters_count: None,
                     last_read: row.last_read,
                     in_library: false,
                     state_viewer: row.state_viewer != 0,
