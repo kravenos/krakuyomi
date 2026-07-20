@@ -1,3 +1,10 @@
+# [1.41.0](https://github.com/kravenos/krakuyomi/compare/v1.40.0...v1.41.0) (2026-07-20)
+
+
+### Features
+
+* **library:** configurable tile metadata with read/total chapter counts ([b6e804e](https://github.com/kravenos/krakuyomi/commit/b6e804e1deef44a383dd60ae7d49a9042878cc3a))
+
 # [1.40.0](https://github.com/kravenos/krakuyomi/compare/v1.39.0...v1.40.0) (2026-07-20)
 
 
