@@ -1,3 +1,18 @@
+# [1.40.0](https://github.com/kravenos/krakuyomi/compare/v1.39.0...v1.40.0) (2026-07-20)
+
+
+### Bug Fixes
+
+* **database:** tolerate applied migrations missing from the source tree ([aca9ba6](https://github.com/kravenos/krakuyomi/commit/aca9ba6584d54050ba1f930022c853038b39db1f))
+
+
+### Features
+
+* **library:** hide fully read manga toggle ([c8442be](https://github.com/kravenos/krakuyomi/commit/c8442be7f43fa9a71cf78d4a1d21a1ec5f10e13e))
+* **library:** show total downloaded size in library menu ([6d692f4](https://github.com/kravenos/krakuyomi/commit/6d692f4b48ec8759c48cc0819161d9576027b0a8))
+* **library:** tap opens Continue Reading / Chapter List dialog ([68e9d27](https://github.com/kravenos/krakuyomi/commit/68e9d27bdfbad1f882ac4aae050162bc3774fd6a))
+* **reader:** reading direction, page turn style, and back-to-library ([8c09157](https://github.com/kravenos/krakuyomi/commit/8c091575f5930440af9353b6bc783b0ea634b4b0))
+
 # [1.39.0](https://github.com/tachibana-shin/rakuyomi/compare/v1.38.0...v1.39.0) (2026-07-19)
 
 
