@@ -1,3 +1,10 @@
+## [1.41.1](https://github.com/kravenos/krakuyomi/compare/v1.41.0...v1.41.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* **settings:** prevent crash when multi-enum value is nil on first open ([7d50deb](https://github.com/kravenos/krakuyomi/commit/7d50deb8fb9a9a340f8b42fe6d8ed0a5d3493fe0))
+
 # [1.41.0](https://github.com/kravenos/krakuyomi/compare/v1.40.0...v1.41.0) (2026-07-20)
 
 
