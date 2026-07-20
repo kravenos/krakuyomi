@@ -88,8 +88,11 @@ function SettingItemValue:createValueWidget()
       label_for_value[option.value] = option.label
     end
 
+    local current_val = self:getCurrentValue()
+    local display_label = (current_val ~= nil and label_for_value[current_val])
+        or tostring(current_val or "")
     return TextWidget:new {
-      text = label_for_value[self:getCurrentValue()] .. " " .. Icons.UNICODE_ARROW_RIGHT,
+      text = display_label .. " " .. Icons.UNICODE_ARROW_RIGHT,
       editable = true,
       face = Font:getFace("cfont", SETTING_ITEM_FONT_SIZE),
       max_width = self.max_width,
