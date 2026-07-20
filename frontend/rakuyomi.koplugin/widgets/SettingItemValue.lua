@@ -69,7 +69,11 @@ end
 --- @private
 --- @return any
 function SettingItemValue:getCurrentValue()
-  if (self.value_definition.type == 'enum' or self.value_definition.type == 'multi-enum') and self.value == nil then
+  if self.value_definition.type == 'multi-enum' and self.value == nil then
+    -- Fall back to the definition's default; if none, return empty selection.
+    return self.value_definition.default or {}
+  end
+  if self.value_definition.type == 'enum' and self.value == nil then
     return self.value_definition.options[1].value
   end
   return self.value

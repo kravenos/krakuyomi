@@ -642,7 +642,7 @@ function Settings:init()
         width = self.item_width,
         label = definition.title,
         value_definition = definition,
-        value = G_reader_settings:readSetting(key, definition.default),
+        value = G_reader_settings:readSetting(key) or definition.default,
         on_value_changed_callback = function(new_value)
           G_reader_settings:saveSetting(key, new_value)
         end
