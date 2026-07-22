@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{database::Database, model::Manga, source_collection::SourceCollection};
 
-use super::get_manga_library::fill_total_chapter_counts;
+use super::get_manga_library::fill_cached_chapter_counts;
 
 pub async fn get_mangas_in_playlist(
     db: &Database,
@@ -18,7 +18,7 @@ pub async fn get_mangas_in_playlist(
         )
         .await?;
 
-    fill_total_chapter_counts(db, &mut mangas).await?;
+    fill_cached_chapter_counts(db, &mut mangas).await?;
 
     Ok(mangas)
 }

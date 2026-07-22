@@ -386,8 +386,10 @@ function LibraryView:_applyHideReadFilter(mangas)
 
   local filtered = {}
   for _, manga in ipairs(mangas) do
-    -- Keep mangas with unread chapters, or whose unread count is unknown.
-    if not (manga.unread_chapters_count ~= nil and manga.unread_chapters_count == 0) then
+    local total = manga.total_chapters_count
+    local read = manga.read_chapters_count
+    local fully_read = total ~= nil and total > 0 and read ~= nil and read >= total
+    if not fully_read then
       table.insert(filtered, manga)
     end
   end
@@ -470,12 +472,12 @@ function LibraryView:generateItemTableFromMangas(mangas)
     end
 
     local total = manga.total_chapters_count
-    if (selected.read or selected.total) and total ~= nil then
-      local read = math.max(total - (manga.unread_chapters_count or 0), 0)
+    local read = manga.read_chapters_count
+    if (selected.read and read ~= nil) or (selected.total and total ~= nil) then
       local text
-      if selected.read and selected.total then
+      if selected.read and selected.total and read ~= nil and total ~= nil then
         text = read .. "/" .. total
-      elseif selected.read then
+      elseif selected.read and read ~= nil then
         text = Icons.FA_CHECK .. (is_cover and " " or "") .. read
       else
         text = Icons.FA_LIST .. (is_cover and " " or "") .. total
@@ -547,8 +549,9 @@ function LibraryView:fetchAndShow(playlist, on_after_open, options)
   UIManager:show(lv)
 
   if options and options.focus_manga_id then
-    for i, item in ipairs(lv.mangas or {}) do
-      if item.id == options.focus_manga_id
+    for i, entry in ipairs(lv.item_table or {}) do
+      local item = entry.manga
+      if item and item.id == options.focus_manga_id
           and item.source and item.source.id == options.focus_manga_source_id then
         lv.itemnumber = i
         lv:switchItemTable(nil, nil, i)
@@ -674,9 +677,8 @@ function LibraryView:onContextMenuChoice(item)
         callback = function()
           UIManager:close(dialog_context_menu)
 
-          ChapterListing:openMarkDialog(manga, true, function(count)
-            manga.unread_chapters_count = count
-            self:updateItems()
+          ChapterListing:openMarkDialog(manga, true, function()
+            self:_refreshMangas()
           end)
         end
       },
@@ -685,9 +687,8 @@ function LibraryView:onContextMenuChoice(item)
         callback = function()
           UIManager:close(dialog_context_menu)
 
-          ChapterListing:openMarkDialog(manga, false, function(count)
-            manga.unread_chapters_count = count
-            self:updateItems()
+          ChapterListing:openMarkDialog(manga, false, function()
+            self:_refreshMangas()
           end)
         end
       }
@@ -1578,6 +1579,34 @@ function LibraryView:openCookieSyncView()
     }:fetchAndShow()
     self:onClose(true)
   end)
+end
+
+--- Refreshes library data while preserving the active title search.
+--- @private
+function LibraryView:_refreshMangas()
+  local mangas = self:fetchMangas()
+  if not mangas then
+    return
+  end
+
+  self.mangas_raw = mangas
+
+  local query = self.favorite_search_keyword
+  query = query and query:match("^%s*(.-)%s*$"):lower()
+  if query and query ~= "" then
+    local filtered = {}
+    for _, manga in ipairs(mangas) do
+      local title = (manga.title or ""):lower()
+      if title:find(query, 1, true) then
+        table.insert(filtered, manga)
+      end
+    end
+    self.mangas = filtered
+  else
+    self.mangas = mangas
+  end
+
+  self:updateItems()
 end
 
 return LibraryView

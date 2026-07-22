@@ -710,7 +710,7 @@ msgstr "Uzak veritabanı yerel veritabanından daha yenidir."
 msgid "This action cannot be undone."
 msgstr "Bu eylem geri alınamaz."
 
-#: ../LibraryView.lua:950
+#: ../LibraryView.lua:948
 msgid "Migrate"
 msgstr "Taşı"
 
@@ -1932,3 +1932,67 @@ msgstr "Geçersiz değer"
 
 #~ msgid "Title manga descending"
 #~ msgstr "Başlık mangası azalıyor"
+
+#: ../MangaReader.lua:216
+msgid "Back to chapter list..."
+msgstr ""
+
+#: ../MangaReader.lua:223
+msgid "Back to library..."
+msgstr ""
+
+#: ../LibraryView.lua:615 ../LibraryView.lua:705
+msgid "Chapter List"
+msgstr ""
+
+#: ../Settings.lua:244
+msgid "Continuous scroll"
+msgstr ""
+
+#: ../LibraryView.lua:949 ../Settings.lua:189
+msgid "Hide fully read manga"
+msgstr ""
+
+#: ../Settings.lua:176
+msgid "Last read time"
+msgstr ""
+
+#: ../Settings.lua:230
+msgid "Left to right"
+msgstr ""
+
+#: ../Settings.lua:241
+msgid "Page turn style"
+msgstr ""
+
+#: ../Settings.lua:243
+msgid "Paginated"
+msgstr ""
+
+#: ../Settings.lua:178
+msgid "Read count"
+msgstr ""
+
+#: ../Settings.lua:228
+msgid "Reading direction"
+msgstr ""
+
+#: ../Settings.lua:231
+msgid "Right to left"
+msgstr ""
+
+#: ../LibraryView.lua:950
+msgid "Show fully read manga"
+msgstr ""
+
+#: ../Settings.lua:174
+msgid "Tile metadata"
+msgstr ""
+
+#: ../Settings.lua:179
+msgid "Total chapters"
+msgstr ""
+
+#: ../Settings.lua:177
+msgid "Unread count"
+msgstr ""

@@ -31,6 +31,15 @@ pub struct Database {
     pool: Arc<RwLock<Pool<Sqlite>>>,
 }
 
+/// Cached chapter totals for one manga.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CachedChapterCounts {
+    /// Number of cached chapter-information rows after scanlator filtering.
+    pub total: usize,
+    /// Number of those chapters explicitly marked as read.
+    pub read: usize,
+}
+
 impl Clone for Database {
     fn clone(&self) -> Self {
         Self {
@@ -178,15 +187,25 @@ impl Database {
     /// `unread_chapters_count`. Computed as a single grouped query — no
     /// per-row subqueries and no filesystem access — so it stays cheap even
     /// on slow devices.
-    pub async fn get_cached_chapter_counts(&self) -> Result<HashMap<(String, String), usize>> {
+    pub async fn get_cached_chapter_counts(
+        &self,
+    ) -> Result<HashMap<(String, String), CachedChapterCounts>> {
         use sqlx::Row;
 
         let rows = sqlx::query(
             r#"
-                SELECT ci.source_id, ci.manga_id, COUNT(*) AS total
+                SELECT
+                    ci.source_id,
+                    ci.manga_id,
+                    COUNT(*) AS total,
+                    COALESCE(SUM(CASE WHEN cs.read = 1 THEN 1 ELSE 0 END), 0) AS read
                 FROM chapter_informations ci
                 LEFT JOIN manga_state ms
                     ON ms.source_id = ci.source_id AND ms.manga_id = ci.manga_id
+                LEFT JOIN chapter_state cs
+                    ON cs.source_id = ci.source_id
+                    AND cs.manga_id = ci.manga_id
+                    AND cs.chapter_id = ci.chapter_id
                 WHERE (ms.preferred_scanlator IS NULL
                     OR ci.scanlator = ms.preferred_scanlator
                     OR ci.scanlator IS NULL)
@@ -204,7 +223,10 @@ impl Database {
                         row.get::<String, _>("source_id"),
                         row.get::<String, _>("manga_id"),
                     ),
-                    row.get::<i64, _>("total") as usize,
+                    CachedChapterCounts {
+                        total: row.get::<i64, _>("total") as usize,
+                        read: row.get::<i64, _>("read") as usize,
+                    },
                 )
             })
             .collect())
@@ -1009,6 +1031,7 @@ impl Database {
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
                     // Filled in by the usecase from get_cached_chapter_counts.
                     total_chapters_count: None,
+                    read_chapters_count: None,
                     last_read: row.last_read,
                     in_library: true,
                     state_viewer: row.state_viewer != 0,
@@ -3287,6 +3310,7 @@ impl Database {
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
                     // Filled in by the usecase from get_cached_chapter_counts.
                     total_chapters_count: None,
+                    read_chapters_count: None,
                     last_read: row.last_read,
                     in_library: false,
                     state_viewer: row.state_viewer != 0,

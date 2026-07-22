@@ -122,11 +122,11 @@ function MangaReader:applyReaderPreferences()
   local reading_direction = G_reader_settings:readSetting("rakuyomi_reading_direction")
   if reading_direction ~= nil then
     pcall(function()
-      local paging = ReaderUI.instance and ReaderUI.instance.paging
-      if paging then
+      local view = ReaderUI.instance and ReaderUI.instance.view
+      if view then
         local want_inverse = reading_direction == "rtl"
-        if (paging.inverse_reading_order or false) ~= want_inverse then
-          UIManager:broadcastEvent(Event:new("ToggleReadingOrder"))
+        if (view.inverse_reading_order or false) ~= want_inverse then
+          view:onToggleReadingOrder(want_inverse)
         end
       end
     end)

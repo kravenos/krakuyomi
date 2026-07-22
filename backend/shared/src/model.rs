@@ -273,6 +273,8 @@ pub struct Manga {
     /// Total number of cached chapters (scanlator-aware), when known. `None`
     /// outside library/playlist contexts (e.g. search results).
     pub total_chapters_count: Option<usize>,
+    /// Number of cached chapters explicitly marked as read, when known.
+    pub read_chapters_count: Option<usize>,
     pub last_read: Option<i64>,
     pub in_library: bool,
     pub state_viewer: bool,
