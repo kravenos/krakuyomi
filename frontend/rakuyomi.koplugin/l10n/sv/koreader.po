@@ -1965,64 +1965,64 @@ msgstr ""
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Tillbaka till kapitellistan..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Tillbaka till biblioteket..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Kapitellista"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Kontinuerlig rullning"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Dölj fullständigt läst manga"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Sista lästid"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Vänster till höger"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Sidvändningsstil"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Paginerad"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Läs räkning"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Läsriktning"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Höger till vänster"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Visa fullständigt läst manga"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Tile metadata"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Totalt antal kapitel"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Antal olästa"

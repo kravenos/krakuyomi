@@ -1944,64 +1944,64 @@ msgstr "Giá trị không hợp lệ"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Quay lại danh sách chương..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Trở lại thư viện..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Danh sách chương"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Cuộn liên tục"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Ẩn manga đã đọc đầy đủ"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Lần đọc cuối cùng"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Trái sang phải"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Kiểu lật trang"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Đã đánh số trang"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "số lần đọc"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Hướng đọc"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Phải sang trái"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Hiển thị truyện tranh đã đọc đầy đủ"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Siêu dữ liệu ô xếp"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Tổng số chương"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Số lượng chưa đọc"

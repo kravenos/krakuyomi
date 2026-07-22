@@ -1935,64 +1935,64 @@ msgstr "Недопустимое значение"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Вернуться к списку глав..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Вернёмся в библиотеку..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Список глав"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Непрерывная прокрутка"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Скрыть полностью прочитанную мангу"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Время последнего чтения"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Слева направо"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Стиль перелистывания страниц"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "с разбивкой на страницы"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Количество прочтений"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Направление чтения"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Справа налево"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Показать полностью прочитанную мангу"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Метаданные плитки"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Всего глав"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Количество непрочитанных"

@@ -1935,64 +1935,64 @@ msgstr "Virheellinen arvo"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Takaisin lukuluetteloon..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Takaisin kirjastoon..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Lukuluettelo"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Jatkuva vieritys"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Piilota kokonaan luettu manga"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Viimeinen lukuaika"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Vasemmalta oikealle"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Sivun käännöstyyli"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Sivutettu"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Lukumäärä"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Lukusuunta"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Oikealta vasemmalle"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Näytä kokonaan luettu manga"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Laattojen metatiedot"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Lukuja yhteensä"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Lukemattomien määrä"

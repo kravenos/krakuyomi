@@ -1965,64 +1965,64 @@ msgstr ""
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Επιστροφή στη λίστα κεφαλαίων..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Επιστροφή στη βιβλιοθήκη..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Λίστα κεφαλαίων"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Συνεχής κύλιση"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Απόκρυψη πλήρως διαβασμένων manga"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Τελευταία ώρα ανάγνωσης"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Από αριστερά προς τα δεξιά"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Στυλ περιστροφής σελίδας"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Σελιδωτό"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Αριθμός ανάγνωσης"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Κατεύθυνση ανάγνωσης"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Δεξιά προς αριστερά"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Εμφάνιση πλήρως διαβασμένων manga"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Μεταδεδομένα πλακιδίων"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Σύνολο κεφαλαίων"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Πλήθος αδιάβαστων"

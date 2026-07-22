@@ -1964,64 +1964,64 @@ msgstr ""
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "العودة إلى قائمة الفصل..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "العودة إلى المكتبة..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "قائمة الفصل"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "التمرير المستمر"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "إخفاء قراءة المانجا بالكامل"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "آخر وقت للقراءة"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "من اليسار إلى اليمين"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "نمط قلب الصفحة"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "مرقّم"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "قراءة العد"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "اتجاه القراءة"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "من اليمين إلى اليسار"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "عرض المانجا المقروءة بالكامل"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "بيانات تعريف البلاط"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "مجموع الفصول"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "عدد غير مقروء"

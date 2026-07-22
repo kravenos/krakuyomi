@@ -1935,64 +1935,64 @@ msgstr "Neplatná hodnota"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Späť na zoznam kapitol..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Späť do knižnice..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Zoznam kapitol"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Nepretržité posúvanie"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Skryť úplne prečítanú mangu"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Čas posledného čítania"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Zľava doprava"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Štýl otáčania stránky"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Stránkované"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Čítaný počet"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Smer čítania"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Sprava doľava"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Zobraziť úplne prečítanú mangu"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Metadáta dlaždíc"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Celkový počet kapitol"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Počet neprečítaných"

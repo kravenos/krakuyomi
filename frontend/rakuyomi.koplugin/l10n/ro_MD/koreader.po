@@ -1935,64 +1935,64 @@ msgstr "Valoare nevalidă"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Înapoi la lista de capitole..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Înapoi la bibliotecă..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Lista de capitole"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Defilare continuă"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Ascunde manga citită complet"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Ultima citire"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "De la stânga la dreapta"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Stilul de întoarcere a paginii"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Paginat"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Numărul de citiri"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Direcția de lectură"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "De la dreapta la stânga"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Arată manga citită complet"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Metadatele plăcilor"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Total capitole"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Număr de necitite"

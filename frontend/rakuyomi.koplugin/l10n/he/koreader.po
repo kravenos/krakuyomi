@@ -1935,64 +1935,64 @@ msgstr "ערך לא חוקי"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "חזרה לרשימת הפרקים..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "חזרה לספרייה..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "רשימת פרקים"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "גלילה רציפה"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "הסתר קריאה מלאה של מנגה"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "זמן קריאה אחרון"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "משמאל לימין"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "סגנון סיבוב דפים"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "מְעוּמָד"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "ספירת לקרוא"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "כיוון קריאה"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "מימין לשמאל"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "הצג מנגה שנקראה במלואה"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "מטא נתונים של אריח"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "סך הכל פרקים"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "ספירה שלא נקראה"

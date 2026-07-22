@@ -1934,64 +1934,64 @@ msgstr "არასწორი მნიშვნელობა"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "თავების სიაში დაბრუნება..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "ბიბლიოთეკაში დაბრუნება..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "თავების სია"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "უწყვეტი გადახვევა"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "სრულად წაკითხული მანგას დამალვა"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "ბოლო წაკითხვის დრო"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "მარცხნიდან მარჯვნივ"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "გვერდის შემობრუნების სტილი"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "დაფურცლილი"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "წაკითხული რაოდენობა"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "კითხვის მიმართულება"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "მარჯვნივ მარცხნივ"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "სრულად წაკითხული მანგას ჩვენება"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "ფილების მეტამონაცემები"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "სულ თავები"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "წაუკითხავი რაოდენობა"

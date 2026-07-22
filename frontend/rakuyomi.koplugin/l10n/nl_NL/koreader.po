@@ -1935,64 +1935,64 @@ msgstr "Ongeldige waarde"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Terug naar hoofdstuklijst..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Terug naar bibliotheek..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Hoofdstuklijst"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Continu scrollen"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Verberg volledig gelezen manga"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Laatste leestijd"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Van links naar rechts"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Stijl voor het omdraaien van pagina's"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Gepagineerd"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Lees tellen"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Lees richting"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Rechts naar links"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Toon volledig gelezen manga"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Metagegevens van tegels"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Totaal hoofdstukken"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Aantal ongelezen"

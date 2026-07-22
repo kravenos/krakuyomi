@@ -1934,64 +1934,64 @@ msgstr "مقدار نامعتبر است"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "بازگشت به فهرست فصل..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "بازگشت به کتابخانه..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "فهرست فصل"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "پیمایش پیوسته"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "مانگای کاملا خوانده شده را مخفی کنید"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "آخرین زمان مطالعه"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "از چپ به راست"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "سبک چرخش صفحه"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "صفحه بندی شده"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "تعداد خواندن"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "جهت خواندن"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "راست به چپ"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "نمایش مانگا به طور کامل خوانده شده"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "فراداده کاشی"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "کل فصل ها"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "تعداد خوانده نشده"

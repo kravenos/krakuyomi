@@ -1944,64 +1944,64 @@ msgstr "無効な値"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "章リストに戻る..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "図書館に戻って…"
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "章リスト"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "連続スクロール"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "読み終えたマンガを非表示にする"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "最後に読んだ時間"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "左から右へ"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "ページめくりのスタイル"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "ページ番号付き"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "読み取り回数"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "読む方向"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "右から左へ"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "読み終えたマンガを表示"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "タイルのメタデータ"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "総チャプター数"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "未読数"

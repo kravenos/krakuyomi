@@ -1935,64 +1935,64 @@ msgstr "Valor inválido"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Voltar à lista de capítulos..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "De volta à biblioteca..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Lista de capítulos"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Rolagem contínua"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Ocultar mangá totalmente lido"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Hora da última leitura"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Da esquerda para a direita"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Estilo de virada de página"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Paginado"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Contagem de leituras"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Direção de leitura"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Da direita para a esquerda"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Mostrar mangá totalmente lido"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Metadados do bloco"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Total de capítulos"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Contagem não lida"

@@ -1934,64 +1934,64 @@ msgstr "Balio baliogabea"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Itzuli kapituluen zerrendara..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Itzuli liburutegira..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Kapitulu zerrenda"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Etengabeko korritu"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Ezkutatu guztiz irakurritako manga"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Azken irakurketa ordua"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Ezkerretik eskuinera"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Orrialde buelta-estiloa"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "orrikatuta"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Irakurri zenbaketa"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Irakurketa norabidea"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Eskuinetik ezkerrera"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Erakutsi guztiz irakurritako manga"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Fitxa metadatuak"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Kapituluak guztira"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Irakurri gabeko zenbaketa"

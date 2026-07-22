@@ -1935,64 +1935,64 @@ msgstr "Érvénytelen érték"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Vissza a fejezetlistához..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Vissza a könyvtárba..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Fejezet lista"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Folyamatos görgetés"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Teljesen elolvasott manga elrejtése"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Utolsó olvasási idő"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Balról jobbra"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Lapozási stílus"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Lapozva"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Olvasási szám"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Olvasási irány"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Jobbról balra"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Teljesen olvasott manga megjelenítése"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Csempe metaadatok"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Összes fejezet"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Olvasatlanok száma"

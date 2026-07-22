@@ -1934,64 +1934,64 @@ msgstr "अमान्य मान"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "अध्याय सूची पर वापस जाएँ..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "लाइब्रेरी में वापस..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "अध्याय सूची"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "लगातार स्क्रॉल करें"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "पूरी तरह से पढ़ा गया मंगा छिपाएँ"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "अंतिम बार पढ़ने का समय"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "बाएं से दायां"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "पेज पलटने की शैली"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "पृष्ठांकित"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "गिनती पढ़ें"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "पढ़ने की दिशा"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "दाएं से बाएं"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "पूरी तरह से पढ़ा गया मंगा दिखाएँ"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "टाइल मेटाडेटा"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "कुल अध्याय"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "अपठित गिनती"

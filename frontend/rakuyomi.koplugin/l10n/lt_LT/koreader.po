@@ -1935,64 +1935,64 @@ msgstr "Netinkama vertė"
 
 #: ../MangaReader.lua:216
 msgid "Back to chapter list..."
-msgstr ""
+msgstr "Grįžti į skyrių sąrašą..."
 
 #: ../MangaReader.lua:223
 msgid "Back to library..."
-msgstr ""
+msgstr "Grįžti į biblioteką..."
 
 #: ../LibraryView.lua:615 ../LibraryView.lua:705
 msgid "Chapter List"
-msgstr ""
+msgstr "Skyrių sąrašas"
 
 #: ../Settings.lua:244
 msgid "Continuous scroll"
-msgstr ""
+msgstr "Nuolatinis slinkimas"
 
 #: ../LibraryView.lua:949 ../Settings.lua:189
 msgid "Hide fully read manga"
-msgstr ""
+msgstr "Slėpti visiškai perskaitytą mangą"
 
 #: ../Settings.lua:176
 msgid "Last read time"
-msgstr ""
+msgstr "Paskutinis skaitymo laikas"
 
 #: ../Settings.lua:230
 msgid "Left to right"
-msgstr ""
+msgstr "Iš kairės į dešinę"
 
 #: ../Settings.lua:241
 msgid "Page turn style"
-msgstr ""
+msgstr "Puslapio posūkio stilius"
 
 #: ../Settings.lua:243
 msgid "Paginated"
-msgstr ""
+msgstr "Puslapiais"
 
 #: ../Settings.lua:178
 msgid "Read count"
-msgstr ""
+msgstr "Skaityti skaičių"
 
 #: ../Settings.lua:228
 msgid "Reading direction"
-msgstr ""
+msgstr "Skaitymo kryptis"
 
 #: ../Settings.lua:231
 msgid "Right to left"
-msgstr ""
+msgstr "Iš dešinės į kairę"
 
 #: ../LibraryView.lua:950
 msgid "Show fully read manga"
-msgstr ""
+msgstr "Rodyti visiškai perskaitytą mangą"
 
 #: ../Settings.lua:174
 msgid "Tile metadata"
-msgstr ""
+msgstr "Plytelių metaduomenys"
 
 #: ../Settings.lua:179
 msgid "Total chapters"
-msgstr ""
+msgstr "Iš viso skyrių"
 
 #: ../Settings.lua:177
 msgid "Unread count"
-msgstr ""
+msgstr "Neskaitytų skaičius"
