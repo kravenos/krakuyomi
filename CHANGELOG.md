@@ -27,6 +27,27 @@
 * **library:** tap opens Continue Reading / Chapter List dialog ([68e9d27](https://github.com/kravenos/krakuyomi/commit/68e9d27bdfbad1f882ac4aae050162bc3774fd6a))
 * **reader:** reading direction, page turn style, and back-to-library ([8c09157](https://github.com/kravenos/krakuyomi/commit/8c091575f5930440af9353b6bc783b0ea634b4b0))
 
+## [1.39.3](https://github.com/tachibana-shin/rakuyomi/compare/v1.39.2...v1.39.3) (2026-07-21)
+
+
+### Bug Fixes
+
+* use local tracking_value_definitions instead of global table in TrackingSettings ([b67a994](https://github.com/tachibana-shin/rakuyomi/commit/b67a994003a05aa516405ea9b5067044cf6c3c0d))
+
+## [1.39.2](https://github.com/tachibana-shin/rakuyomi/compare/v1.39.1...v1.39.2) (2026-07-21)
+
+
+### Bug Fixes
+
+* use lowercase serialization for TrackingService and decouple instance tracking definitions in UI ([e0db2fb](https://github.com/tachibana-shin/rakuyomi/commit/e0db2fbb96d753565f65e733a67f31188a391aaf))
+
+## [1.39.1](https://github.com/tachibana-shin/rakuyomi/compare/v1.39.0...v1.39.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* ensure bridge URL is correctly constructed by trimming trailing slashes from server URL ([d9e6c8f](https://github.com/tachibana-shin/rakuyomi/commit/d9e6c8f272e2e2dc32aa479856206d540b056e89))
+
 # [1.39.0](https://github.com/tachibana-shin/rakuyomi/compare/v1.38.0...v1.39.0) (2026-07-19)
 
 
