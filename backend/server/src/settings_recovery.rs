@@ -180,7 +180,7 @@ mod tests {
 
         fs::write(
             &backup_path,
-            serde_json_lenient::to_vec_pretty(&expected).expect("serialize backup settings"),
+            serde_json::to_vec_pretty(&expected).expect("serialize backup settings"),
         )
         .expect("write last-known-good backup");
         fs::write(&settings_path, "{\n  \"languages\": [\"nl\"]")
