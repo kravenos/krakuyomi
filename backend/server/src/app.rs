@@ -196,6 +196,63 @@ async fn health_check() -> Json<()> {
 /// Construct the [`State`] from a home path. This performs all the
 /// filesystem bootstrapping (creating directories, writing default
 /// settings, opening the database) and source loading.
+/// Loads the settings file, falling back to the defaults if it can't be
+/// parsed.
+///
+/// A settings file can end up truncated if a write was interrupted (power
+/// loss, or the server being killed mid-save). Refusing to start in that case
+/// leaves the plugin unusable with no way to fix it from the device, so the
+/// unreadable file is preserved alongside a fresh default one and startup
+/// continues. The returned message, when present, is surfaced to the user via
+/// the startup log.
+fn load_settings_or_recover(settings_path: &std::path::Path) -> Result<(Settings, Option<String>)> {
+    let error = match Settings::from_file(settings_path) {
+        Ok(settings) => return Ok((settings, None)),
+        Err(error) => error,
+    };
+
+    warn!(
+        "couldn't read settings file at {}: {error:#}; falling back to defaults",
+        settings_path.display()
+    );
+
+    let backup_path = settings_path.with_extension(format!(
+        "invalid-{}.json",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    ));
+
+    let backup_note = match fs::rename(settings_path, &backup_path) {
+        Ok(()) => format!(
+            "The previous file was kept at {} in case you want to recover values from it.",
+            backup_path.display()
+        ),
+        Err(rename_error) => {
+            warn!("couldn't preserve the invalid settings file: {rename_error}");
+            "The previous file couldn't be preserved.".to_string()
+        }
+    };
+
+    fs::write(settings_path, DEFAULT_SETTINGS_JSON).with_context(|| {
+        format!(
+            "couldn't write default settings file at {}",
+            settings_path.display()
+        )
+    })?;
+
+    let settings = Settings::from_file(settings_path)
+        .with_context(|| "couldn't read the default settings file")?;
+
+    Ok((
+        settings,
+        Some(format!(
+            "Your settings file couldn't be read ({error}), so rakuyomi started with default settings. {backup_note}"
+        )),
+    ))
+}
+
 pub async fn build_state(home_path: PathBuf) -> Result<State> {
     fs::create_dir_all(&home_path)
         .context("while trying to ensure rakuyomi's home folder exists")?;
@@ -223,8 +280,7 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
     let cookies_path = home_path.join("cookies.json");
     shared::cookie_store::init_cookie_store_with_path(&cookies_path)
         .context("couldn't initialize cookie store")?;
-    let settings = Settings::from_file(&settings_path)
-        .with_context(|| format!("couldn't read settings file at {}", settings_path.display()))?;
+    let (settings, settings_recovery_message) = load_settings_or_recover(&settings_path)?;
 
     shared::tls::set_proxy_url(settings.proxy_url.clone());
 
@@ -237,6 +293,10 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
         .unwrap_or(default_downloads_folder_path);
 
     let startup_log = crate::state::StartupLog::new();
+
+    if let Some(msg) = settings_recovery_message {
+        startup_log.push(msg).await;
+    }
 
     let mut chapter_storage = ChapterStorage::new(
         downloads_folder_path,
