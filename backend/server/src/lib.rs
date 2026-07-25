@@ -28,6 +28,7 @@ pub mod system;
 pub mod update;
 
 mod app;
+mod settings_recovery;
 
 pub use app::{build_router, build_state, init_logging, log_startup, run, serve};
 pub use error::{AppError, ErrorResponse};
