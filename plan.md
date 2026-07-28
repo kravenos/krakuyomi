@@ -112,19 +112,37 @@ Everything below exists only in the fork. Grouped by feature, newest last.
 
 ## 5. Planned work
 
-### 5.1 Source management (priority - caused real data trouble)
-Removing a source leaves its manga in `manga_library`, so they vanish from the
-library but still exist in the database and fail refresh with a migration
-error. There is no in-app way to see or fix this.
+### 5.1 Source management and search (priority - caused real data trouble)
 
-- Detect and surface orphaned library entries: library rows whose
-  `source_id` has no matching `<source_id>.aix` in the sources folder.
-- Warn before uninstalling a source that still has library entries, naming
-  how many manga would be affected.
-- Offer recovery: reinstall the source, or migrate entries to another source,
-  or remove them deliberately.
-- Until this exists, `dist/diagnose-library.py` reports the same information
-  from a copy of the database plus a listing of the sources folder.
+Removing a source leaves its manga in `manga_library`, so they vanish from the
+library but still exist in the database and fail refresh. There is no in-app
+way to see which source went missing or to recover. Confirmed problems:
+
+1. **Orphaned library entries.** Detect library rows whose `source_id` has no
+   matching `<source_id>.aix` in the sources folder, and surface them in the
+   UI instead of failing silently.
+2. **No warning on uninstall.** Uninstalling a source that still has library
+   entries should say how many manga it will orphan and require confirmation.
+3. **Uninstall leaves the metadata sidecar behind.** `SourceManager::
+   uninstall_source` (`source_manager.rs:72`) removes only `<id>.aix`; the
+   `.{id}.source` sidecar written by `write_meta_file` is never deleted. The
+   sources folder therefore lists sources the app does not have, which makes
+   the folder actively misleading when diagnosing. Delete the sidecar too.
+4. **Recovery path.** Offer reinstall, migrate entries to another source, or
+   deliberate removal, for orphaned entries.
+5. **Search does not show the source.** `MangaSearchResults.lua:150` sets
+   `post_text = is_cover and mandatory or manga.source.name`, so the source
+   name appears only in base/list mode; in cover and grid mode it is replaced
+   by the read/unread indicators. Show the source in every view mode.
+6. **No positive per-source search.** Search is global. The only filtering is
+   a persisted exclusion list (`exlucde_source_ids_select_search`, note the
+   upstream typo) applied by the `Search*` button. Add "search this source
+   only".
+7. **Installed-source visibility.** Sources present in the folder can fail to
+   appear in the app's list, with no diagnostic. Surface load failures.
+
+Interim tool: `dist/diagnose-library.py` reports orphaned entries and stale
+sidecars from a copy of the database plus a listing of the sources folder.
 
 ### 5.2 Collections / folders (ZenUI style)
 Group series by genre and browse a collection through the normal library
