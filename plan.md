@@ -1,11 +1,17 @@
-# rakuyomi fork - working plan and divergence record
+# rakuyomi fork - historical working plan and divergence record
+
+> This remains the chronological recovery record and device/machine handoff.
+> The canonical scope and keep/drop decisions for a clean upstream rebuild now
+> live in `fork-rebuild-spec.md`. The source-management requirements live in
+> `source-management-spec.md`.
 
 Fork: `kravenos/krakuyomi` &middot; Upstream: `tachibana-shin/rakuyomi`
 Device: Kindle Paperwhite 12 SE, firmware 5.17.1, `kindlehf` build.
 
-This file is the recovery record for the fork. If the working copy is ever
-lost, everything needed to rebuild the fork-only work is described here.
-Keep it out of upstream pull requests.
+This file records how the current fork was produced. It is useful history, but
+it mixes implemented behavior, planned ideas, release operations, and local
+troubleshooting, so it must not be used alone as a rebuild specification. Keep
+it out of upstream pull requests.
 
 ---
 
@@ -162,6 +168,9 @@ and shrink the font to fit. Port that approach to grid mode.
 
 ### 5.4 Outstanding
 - Device-test `fix/settings-corruption-recovery`, then merge and release.
+- Merge `dist/mangafire-poster-repair` into the device's `downloads/.posters`
+  and verify cover/grid view. The offline repair created all 23 new-id cache
+  files byte-identically; only the copy-back and device check remain.
 - Repair the corrupt `settings.json` on the device, or let the recovery build
   preserve it and start from defaults.
 

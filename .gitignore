@@ -20,4 +20,7 @@ dev.db
 
 node_modules
 
+__pycache__/
+*.py[cod]
+
 /BUILD_INFO.json

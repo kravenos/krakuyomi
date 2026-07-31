@@ -1,18 +1,24 @@
 # Incident report - library loss and source failures (2026-07-29)
 
 Handoff note for Codex and any other agent picking up rakuyomi-v2.
-Companions: `plan.md` (plan of record), `source-management-spec.md` (design).
+Companions: `fork-rebuild-spec.md` (clean-rebuild scope), `plan.md`
+(historical record), and `source-management-spec.md` (design).
 
 ## Summary
 
 A single user-visible symptom - "manga disappeared from my library and refresh
-fails" - turned out to be **three unrelated failures stacked on top of each
-other**. All three were silent, none was diagnosable from the app, and in
+fails" - turned out to be **three source-management failures stacked on top of
+each other**, followed by a fourth database-transfer failure during recovery.
+The source failures were silent, none was diagnosable from the app, and in
 every case the information needed to detect the problem was already present
 on the device.
 
-All three are now resolved. No user data was lost: 45 library entries and
-2,305 read chapters are intact.
+The data was recovered and verified offline: 45 library entries and 2,305 read
+chapters are intact. The settings-corruption fix was built and passed CI but,
+as recorded below, still awaited device testing at the time of this report;
+the migrated database and replacement source files also still required the
+listed device-application steps. "Recovered offline" must not be read as
+"released and verified on device."
 
 ---
 
@@ -133,16 +139,42 @@ to emit a file that fails.
 
 ---
 
+## Problem 5 - The id migration orphaned cached covers
+
+**What happened.** The database migration rewrote MangaFire ids but did not
+migrate cached poster filenames. Poster paths are not stored in SQLite:
+`ChapterStorage::path_for_poster` hashes `source_id + manga_id`. All 23 old
+`/manga/...` ids and their new `/title/...` ids therefore resolve to different
+files even though the database still contains valid remote `cover_url` values.
+
+**Why Claude's fix was incomplete.** Its verification checked database rows,
+read counts, and SQLite integrity only. It did not include the `.posters`
+directory or assert that each migrated library entry still resolved to a
+cached file.
+
+**Fix.** `scripts/migrate-mangafire-ids.py` now treats the database and poster
+cache as one migration. It computes filenames exactly like the Rust backend,
+copies old covers atomically to new keys, retains old files for rollback, and
+refuses to overwrite a different destination. Its `posters` mode repairs an
+already-migrated installation. The database path now uses SQLite's backup API
+so committed WAL state is included and emits a single `DELETE`-journal file.
+
+Regression tests cover the Rust-compatible cache hash, poster copying,
+conflict refusal, WAL capture, migrated ids, and self-contained output.
+
+---
+
 ## Artifacts
 
-All in `dist/` (git-excluded, local only):
+Device/recovery artifacts are in `dist/` (git-excluded, local only); the
+corrected reusable migration tool is tracked under `scripts/`:
 
 | File | Purpose |
 |------|---------|
 | `diagnose-library.py` | Reports orphaned library entries and stale `.source` sidecars from a database plus a sources listing |
-| `migrate-mangafire-ids.py` | Offline id migration; dry-run by default, never writes in place, emits a vacuumed copy |
+| `scripts/migrate-mangafire-ids.py` | Permanent id + poster-cache migration; dry-run by default, never writes in place, includes committed WAL state |
 | `mangafire-id-map.json` | The 23 resolved old -> new id pairs |
-| `database-clean.db` | Migrated database, `integrity_check: ok`, ready for the device |
+| `database-repaired-v2.db` | Rebuilt with the corrected tool: 45 library rows, 2,305 read chapters, `integrity_check: ok`, no sidecars |
 | `multi.mangafire-v8.aix` | The updated source |
 | `en.mangakatana-v3.aix` | Legacy source, sideload fallback |
 
@@ -152,11 +184,19 @@ All in `dist/` (git-excluded, local only):
 - 2,305 read chapters preserved (1,238 of them MangaFire)
 - MangaFire: 23 rows on new ids, 0 on old
 - `PRAGMA integrity_check` = ok
+- Corrected database: `journal_mode = delete`, `foreign_key_check` = 0
+- A copied device cache was repaired offline: all 23 old MangaFire posters were
+  present, all 23 new-id files were created byte-identically, and all 23 ids in
+  `database-repaired-v2.db` now resolve locally. The 23-file merge bundle is
+  `dist/mangafire-poster-repair`. It must still be copied back and verified on
+  the device; offline repair must not be claimed as on-device verification.
 
 ## Outstanding
 
 1. Device-test `fix/settings-corruption-recovery`, then merge and release.
-2. Apply the database and source files per the steps above.
+2. Merge the 23 files from `dist/mangafire-poster-repair` into the device's
+   `downloads/.posters`, then apply/retain the verified database and source
+   files per the steps above and verify cover/grid view on-device.
 3. Back up `settings.json` once correct - source lists exist nowhere else.
 4. Implement source management per `source-management-spec.md`. Phase 1
    (health detection and honest error reporting) would have reduced all three
