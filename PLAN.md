@@ -1,10 +1,10 @@
 # RakuYomi Controlled Rebuild Plan
 
 - Status: Opening step 2, upstream baseline qualification
-- Active gate: Gate 6, local review complete; publication awaiting approval
+- Active gate: Gate 6, ready fork PR #4 open; merge separately gated
 - Last verified: 2026-08-03
 - Active change: `codex/qualify-upstream-baseline`
-- Publication authority: Local review and planned commit only; no push, PR, merge, default-branch change, or release granted
+- Publication authority: Branch push and ready fork PR completed; no merge, default-branch change, release, cleanup, or remote deletion granted
 
 This file is the operational source of truth for the controlled rebuild. The
 durable requirements and policies are in [SPEC.md](SPEC.md). Keep detailed
@@ -48,7 +48,7 @@ Exactly one change may be active in Gates 1 through 5.
 | Gate 3 | Approved |
 | Gate 4 | Approved |
 | Gate 5 | Approved |
-| Gate 6 | Local review complete; push and ready fork PR await explicit approval |
+| Gate 6 | Ready fork PR #4 open; merge remains separately gated |
 | Branch base | `a0efffbd430d72575c44773dc0d7feec0c726f49` |
 | Intended fork PR target | `codex/upstream-rebuild` |
 | Intended upstream target | None |
@@ -98,7 +98,7 @@ page-turn style, and Back to library remain separate branches and PRs.
 
 | Branch or PR | Base or target | Purpose | State | Publication constraint |
 |---|---|---|---|---|
-| `codex/qualify-upstream-baseline` | Base `a0efffb`; target `codex/upstream-rebuild` | Artifact, backup, and Kindle qualification evidence | Local, Gate 6 review | Push and PR require explicit approval |
+| [Fork PR #4](https://github.com/kravenos/krakuyomi/pull/4), `codex/qualify-upstream-baseline` | Target `codex/upstream-rebuild` | Artifact, backup, and Kindle qualification evidence | Open, ready | Fork-only; merge requires explicit approval |
 | [Fork PR #3](https://github.com/kravenos/krakuyomi/pull/3), `codex/fork-governance-docs` | Target `codex/upstream-rebuild` | Root fork governance | Merged at `a0efffb` | Fork-only |
 | `codex/upstream-rebuild` | Upstream `v1.39.6` plus root governance documents | Clean rebuild lineage | Remote, runtime-unmodified, Kindle-qualified | Do not promote to `main` yet |
 | `codex/archive-pre-upstream-rebuild-2026-07-31` | Archive `44794ff` | Historical recovery point | Preserved locally and remotely | Never merge wholesale |
@@ -123,6 +123,7 @@ No upstream candidate is active or awaiting review.
 | Disposable database verification | Database plus WAL/SHM copied from the sealed backup | Passed | SQLite integrity and quick checks returned `ok`; no foreign-key violations |
 | Library/source diagnostic | 45 library entries across four installed sources | Passed | No orphaned library entries; 13 SQLx migrations present |
 | Gate 6 live-ref review | Upstream and fork refs on 2026-08-03 | Passed | Upstream `main` and v1.39.6 remain `0ef01d0`; fork rebuild remains `a0efffb`; fork `main`, PR #2, PR #3, and no-release state remain as recorded |
+| Gate 6 fork publication | [Fork PR #4](https://github.com/kravenos/krakuyomi/pull/4) | Published | Ready PR targets `codex/upstream-rebuild`; merge and release remain unauthorized |
 
 ### Baseline qualification contract
 
@@ -222,13 +223,13 @@ No upstream candidate is active or awaiting review.
 - The expected final tracked diff is only `PLAN.md`; there is no runtime, build,
   dependency, schema, interface, translation, release-workflow, or performance
   change.
-- The single local commit uses
+- The qualification evidence commit uses
   `docs: record upstream baseline qualification`.
-- The proposed fork PR targets `codex/upstream-rebuild`; no upstream PR is
+- The fork PR targets `codex/upstream-rebuild`; no upstream PR is
   appropriate because this is fork-operational qualification evidence.
-- A branch push and ready fork PR require explicit approval after this review.
-  Merge, default-branch, tag, release, cleanup, and remote-deletion authority
-  remain separate and are not requested by this package.
+- The branch is pushed and ready fork PR #4 is open against
+  `codex/upstream-rebuild`. Merge, default-branch, tag, release, cleanup, and
+  remote-deletion authority remain separate and are not granted by this package.
 
 ### Kindle and artifact evidence
 
@@ -257,8 +258,8 @@ the feature backlog has not been re-ranked.
    baseline behavior must be defined and tested.
 3. Fork `main` is still the old lineage; its promotion requires an explicit,
    separately reviewed operation.
-4. Runtime qualification passed and was approved, but its fork-operational
-   evidence remains local until Gate 6 authorizes publication.
+4. Runtime qualification passed and its fork-operational evidence is published
+   in ready fork PR #4, but the PR is not approved to merge.
 5. Legacy fork PR #2 still targets `main` and may become misleading when that ref
    changes.
 6. Ignored recovery material under `dist/` includes unique databases, source
@@ -271,8 +272,8 @@ the feature backlog has not been re-ranked.
 
 ## 9. Decisions awaiting approval
 
-- Gate 6 authorization to push the reviewed branch and open a ready fork PR to
-  `codex/upstream-rebuild`; merge and release authority remain separate.
+- Whether ready fork PR #4 may merge after its checks and review; merge and
+  release authority remain separate.
 - The release-freeze trigger and fork tag-baseline design in opening step 3.
 - The disposition of legacy PR #2 before default-branch promotion.
 - The external archive location and verification method for unique recovery
@@ -282,7 +283,7 @@ Feature-specific decisions remain deferred to each feature's Gate 2.
 
 ## 10. Recommended next action
 
-Present the reviewed local commit and PR package for explicit push and ready-PR
+Verify fork PR #4 checks and review, then present the evidence for explicit merge
 approval. Do not delete the parked clone, merge, change `main`, tag, release, or
 delete remote state.
 
