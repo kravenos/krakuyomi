@@ -5,6 +5,8 @@ use std::time::Duration;
 use axum::extract::{Path, Query, State as StateExtractor};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
+#[cfg(target_os = "android")]
+use cbz_metadata_reader::{extract_metadata, MetadataError};
 use futures::Future;
 use log::warn;
 use serde::{Deserialize, Serialize};
@@ -16,26 +18,13 @@ use shared::usecases;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::model::{Chapter, Manga};
+use crate::model::{resolve_manga_covers, Chapter, Manga};
 use crate::source_extractor::SourceExtractor;
 use crate::state::State;
 use crate::AppError;
 
-fn path_to_file_url(path: &std::path::Path) -> Option<url::Url> {
-    match url::Url::from_file_path(path) {
-        Ok(url) => Some(url),
-        Err(_) => match path.canonicalize() {
-            Ok(canonical_path) => url::Url::from_file_path(canonical_path).ok(),
-            Err(e) => {
-                println!("Error canonicalizing path: {}", e);
-                None
-            }
-        },
-    }
-}
-
 pub fn routes() -> Router<State> {
-    Router::new()
+    let router = Router::new()
         .route("/library", get(get_manga_library))
         .route("/storage-stats", get(get_storage_stats))
         .route("/find-orphan-or-read-files", get(find_orphan_or_read_files))
@@ -133,7 +122,15 @@ pub fn routes() -> Router<State> {
         .route(
             "/mangas/{source_id}/{manga_id}/viewer",
             post(set_manga_viewer),
-        )
+        );
+
+    #[cfg(target_os = "android")]
+    let router = router.route(
+        "/mangas/{source_id}/{manga_id}/chapters/{chapter_id}/metadata",
+        get(get_chapter_metadata),
+    );
+
+    router
 }
 
 async fn get_manga_library(
@@ -154,13 +151,7 @@ async fn get_manga_library(
         usecases::get_manga_library(&database, &*source_manager, library_sorting_mode).await?;
 
     if settings.library_view_mode != shared::settings::LibraryViewMode::Base {
-        for manga in mangas.iter_mut() {
-            if manga.information.cover_url.is_some() {
-                manga.information.cover_url = chapter_storage
-                    .poster_exists(&manga.information.id)
-                    .and_then(|path| path_to_file_url(&path));
-            }
-        }
+        resolve_manga_covers(&mut mangas, &chapter_storage);
     }
 
     Ok(Json(
@@ -339,13 +330,7 @@ async fn get_mangas(
         .map_err(AppError::from_search_mangas_error)?;
 
     if settings.search_view_mode != shared::settings::SearchViewMode::Base {
-        for manga in mangas.iter_mut() {
-            if manga.information.cover_url.is_some() {
-                manga.information.cover_url = chapter_storage
-                    .poster_exists(&manga.information.id)
-                    .and_then(|path| path_to_file_url(&path));
-            }
-        }
+        resolve_manga_covers(&mut mangas, &chapter_storage);
     }
 
     let results = mangas.into_iter().map(Manga::from).collect();
@@ -548,7 +533,7 @@ async fn refresh_manga_chapters(
 
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    let _ = usecases::refresh_manga_chapters(&token.0, &database, &source, &manga_id, 60).await;
+    usecases::refresh_manga_chapters(&token.0, &database, &source, &manga_id, 60).await?;
 
     Ok(Json(()))
 }
@@ -597,15 +582,8 @@ async fn refresh_manga_details(
     let chapter_storage = &*chapter_storage.lock().await;
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    let _ = usecases::refresh_manga_details(
-        &token.0,
-        &database,
-        chapter_storage,
-        &source,
-        &manga_id,
-        60,
-    )
-    .await;
+    usecases::refresh_manga_details(&token.0, &database, chapter_storage, &source, &manga_id, 60)
+        .await?;
 
     Ok(Json(()))
 }
@@ -737,6 +715,43 @@ async fn revoke_manga_chapter(
     .await?;
 
     Ok(Json(result))
+}
+
+/// Returns the ComicInfo.xml metadata of a downloaded chapter, in the shape
+/// expected by KOReader's document properties. Only available on Android,
+/// where the `cbz_metadata_reader` binary cannot be executed (noexec storage).
+#[cfg(target_os = "android")]
+async fn get_chapter_metadata(
+    StateExtractor(State {
+        chapter_storage, ..
+    }): StateExtractor<State>,
+    Path(params): Path<DownloadMangaChapterParams>,
+) -> Result<Json<cbz_metadata_reader::KoReaderMetadata>, AppError> {
+    let chapter_id = ChapterId::from(params);
+
+    let path = {
+        let storage = chapter_storage.lock().await;
+        match storage.get_stored_chapter_and_errors(&chapter_id, true) {
+            Ok(Some((path, _))) => Some(path),
+            _ => storage
+                .get_stored_chapter_and_errors(&chapter_id, false)?
+                .map(|(path, _)| path),
+        }
+    };
+
+    let Some(path) = path else {
+        return Err(AppError::NotFound);
+    };
+
+    let metadata = tokio::task::spawn_blocking(move || extract_metadata(&path))
+        .await
+        .map_err(AppError::from)?
+        .map_err(|err| match err {
+            MetadataError::MissingComicInfo => AppError::NotFound,
+            MetadataError::Other(inner) => AppError::from(inner),
+        })?;
+
+    Ok(Json(metadata))
 }
 
 #[derive(Deserialize)]

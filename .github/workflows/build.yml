@@ -32,7 +32,7 @@ jobs:
       shell: bash
       run: |
         short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
-        echo "value=1.39.6+ci.${GITHUB_RUN_NUMBER}.${short_sha}" >> "$GITHUB_OUTPUT"
+        echo "value=1.41.4+ci.${GITHUB_RUN_NUMBER}.${short_sha}" >> "$GITHUB_OUTPUT"
 
   prepare-release:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_action == 'publish' && github.ref == 'refs/heads/main' }}
@@ -51,10 +51,10 @@ jobs:
     - name: Verify release baseline
       shell: bash
       run: |
-        expected_commit="0ef01d0bab2ab90a436f4884fd3192f821d4a996"
-        actual_commit="$(git rev-list -n 1 v1.39.6 2>/dev/null || true)"
+        expected_commit="df0ef29fc07d87966a1a2558ab257743f29efaf4"
+        actual_commit="$(git rev-list -n 1 v1.41.4 2>/dev/null || true)"
         if [[ "$actual_commit" != "$expected_commit" ]]; then
-          echo "v1.39.6 must point to the qualified upstream commit $expected_commit" >&2
+          echo "v1.41.4 must point to the qualified upstream commit $expected_commit" >&2
           exit 1
         fi
     - name: Setup Node.js
@@ -79,25 +79,38 @@ jobs:
           exit 1
         fi
         release_version="${RELEASE_TAG#v}"
-        highest_version="$(printf '%s\n' '1.39.6' "$release_version" | sort -V | tail -n 1)"
-        if [[ "$highest_version" != "$release_version" || "$release_version" == "1.39.6" ]]; then
-          echo "semantic-release must produce a version newer than 1.39.6" >&2
+        highest_version="$(printf '%s\n' '1.41.4' "$release_version" | sort -V | tail -n 1)"
+        if [[ "$highest_version" != "$release_version" || "$release_version" == "1.41.4" ]]; then
+          echo "semantic-release must produce a version newer than 1.41.4" >&2
           exit 1
         fi
         echo "value=$release_version" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [ci-version, prepare-release]
-    if: ${{ always() && (needs.ci-version.result == 'success' || needs.prepare-release.result == 'success') }}
+    # The build matrix is expensive, so only start it after the tests pass:
+    # the ci job runs the full test suite once for this workflow.
+    needs: [ci, ci-version, prepare-release]
+    if: ${{ always() && needs.ci.result == 'success' && (needs.ci-version.result == 'success' || needs.prepare-release.result == 'success') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        target: ["aarch64", "desktop", "kindle", "kindlehf", "kindlea9", "android"]
+        target: ["aarch64", "desktop", "kindle", "kindlehf", "kindlea9"]
         os: [ubuntu-latest]
         include:
           - target: "macos"
             os: macos-14
+          # Android is split into parallel jobs, one per ABI: armv7 targets
+          # API 18, aarch64/x86_64 target API 21.
+          - target: "android-armv7"
+            os: ubuntu-latest
+            abi: "armv7"
+          - target: "android-aarch64"
+            os: ubuntu-latest
+            abi: "aarch64"
+          - target: "android-x86_64"
+            os: ubuntu-latest
+            abi: "x86_64"
 
     steps:
     - uses: actions/checkout@v3
@@ -134,10 +147,10 @@ jobs:
           ~/.local/share/containers
         key: ${{ runner.os }}-podman-cross-${{ matrix.target }}
 
-    - name: Install Rust 1.95.0
+    - name: Install Rust 1.97.1
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: 1.95.0
+        toolchain: 1.97.1
         profile: minimal
         components: rustfmt, clippy
         override: true
@@ -149,6 +162,12 @@ jobs:
     - name: Install cross (Linux)
       if: runner.os == 'Linux'
       run: cargo install cross
+
+    - name: Setup bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        # bun.lock files use the v1 format (stable bun)
+        bun-version: 1.3.14
 
     - name: Cache Rust Dependencies
       uses: swatinem/rust-cache@v2
@@ -169,34 +188,39 @@ jobs:
         path: build/rakuyomi-${{ matrix.target }}.zip
 
     - uses: actions/setup-java@v4
-      if: ${{ matrix.target == 'android' }}
+      if: ${{ startsWith(matrix.target, 'android') }}
       with:
         distribution: temurin
         java-version: 17
 
     - uses: android-actions/setup-android@v3
-      if: ${{ matrix.target == 'android' }}
+      if: ${{ startsWith(matrix.target, 'android') }}
 
     - name: Install Android NDK (r23b)
-      if: ${{ matrix.target == 'android' }}
+      if: ${{ startsWith(matrix.target, 'android') }}
       run: sdkmanager "ndk;23.1.7779620"
 
     - name: Configure NDK
-      if: ${{ matrix.target == 'android' }}
+      if: ${{ startsWith(matrix.target, 'android') }}
       run: |
         echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/23.1.7779620" >> $GITHUB_ENV
         echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/23.1.7779620" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/ndk/23.1.7779620/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
     - name: Install cargo-ndk
-      if: ${{ matrix.target == 'android' }}
+      if: ${{ startsWith(matrix.target, 'android') }}
       run: cargo install cargo-ndk && rustup target install aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
+    - name: Install clang for rquickjs bindgen
+      if: ${{ startsWith(matrix.target, 'android') }}
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang libclang-dev
+
     - name: Build plugin for android
-      if: ${{ matrix.target == 'android' }}
-      run: bash scripts/build-rust-android.sh
+      if: ${{ startsWith(matrix.target, 'android') }}
+      run: bash scripts/build-rust-android.sh ${{ matrix.abi }}
 
   generate-settings-schema:
+    needs: [ci]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -213,13 +237,19 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
  
-    - name: Install Rust 1.95.0
+    - name: Install Rust 1.97.1
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: 1.95.0
+        toolchain: 1.97.1
         profile: minimal
         components: rustfmt, clippy
         override: true
+
+    - name: Setup bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        # bun.lock files use the v1 format (stable bun)
+        bun-version: 1.3.14
 
     - name: Build settings schema
       run: bash scripts/generate-settings-schema.sh
@@ -253,6 +283,14 @@ jobs:
       with:
         path: build
         merge-multiple: true
+    - name: Combine android plugin zips
+      run: |
+        # The per-ABI android jobs all produce the same plugin zip (the
+        # libserver.so lives in the companion app, not in the plugin), so
+        # merge them back into a single rakuyomi-android.zip for release.
+        if compgen -G "build/rakuyomi-android-*.zip" > /dev/null; then
+          cp "$(ls build/rakuyomi-android-*.zip | head -1)" build/rakuyomi-android.zip
+        fi
     - name: Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
