@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: Unattended fork-only rebuild authorized; stable upstream refresh is in progress
+- Status: Stable v1.41.4 baseline merged; current-spec audit is ready for its fork-only PR
 - Active gate: All six gates are pre-approved for the bounded fork-only program
 - Last verified: 2026-08-29
-- Active change: `codex/sync-upstream-v1.41.4`
+- Active change: `codex/specify-v1.41.4-rebuild`
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -18,12 +18,12 @@ feature behavior in separately approved feature specifications.
 | Upstream branch | `main` at `66d592f5118d00ef899a049032f5cad0c6ace2c0`; one unreleased test-only commit beyond the pinned baseline |
 | Pinned upstream release | [`v1.41.4`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.41.4) at `df0ef29fc07d87966a1a2558ab257743f29efaf4` |
 | Fork | `kravenos/krakuyomi` |
-| Clean rebuild branch | `codex/sync-upstream-v1.41.4` at merge commit `c9869e4`; contains exact upstream v1.41.4 plus fork governance and adapted release control |
-| Fork default branch | Clean rebuild `main` at `8c732a3592adf477d5def2a6634e9ba90cb92e92` pending the reviewed v1.41.4 refresh |
+| Clean rebuild branch | Fork `main` at `b7d97c8faa6c47b9dd18ac12ad372b04c41c43e7`; contains exact upstream v1.41.4 plus fork governance and adapted release control |
+| Fork default branch | `main` at `b7d97c8faa6c47b9dd18ac12ad372b04c41c43e7` after fork PR #7 |
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
-| Fork release baseline tag | `v1.39.6` remains exact; `v1.41.4` will be added only as an exact fork tag without creating a GitHub release after validation |
-| Rebuild-branch CI | The v1.39.6 fork baseline passed; v1.41.4 validation will cover Rust, Lua, schema generation, nine platform jobs, and skipped release jobs |
+| Fork release baseline tag | `v1.41.4` points exactly to upstream release commit `df0ef29`; no GitHub release exists |
+| Rebuild-branch CI | PR #7 passed Rust, Lua, schema generation, and nine platform jobs; the release job was skipped |
 
 The v1.41.4 release commit `df0ef29` adds release metadata to code parent
 `9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
@@ -41,15 +41,15 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Refresh the fork to stable upstream v1.41.4 without restoring automatic releases |
-| Classification | Fork-only baseline and release governance |
+| Active outcome | Record the audited v1.41.4 rebuild and source-management contract |
+| Classification | Fork-only governance and specification |
 | Gate 1 | Pre-approved; upstream and fork state verified |
 | Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
 | Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
-| Gate 4 | In progress on `codex/sync-upstream-v1.41.4` |
+| Gate 4 | Documentation complete on `codex/specify-v1.41.4-rebuild`; exact-diff review passed |
 | Gate 5 | Final combined KindleHF artifact after all isolated outcomes |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
-| Branch base | Fork `main` at `8c732a3592adf477d5def2a6634e9ba90cb92e92` |
+| Branch base | Fork PR #7 head `a43747e`, now an ancestor of fork `main` `b7d97c8` |
 | Intended fork PR target | `main` |
 | Intended upstream target | None; the complete program is fork-only |
 
@@ -63,8 +63,8 @@ Do not combine these steps in one branch or PR.
 | 2 | Qualify untouched upstream baseline and run Kindle smoke test | Complete | Merged through fork PR #4 |
 | 3 | Freeze automatic fork releases while preserving CI artifacts | Complete | Merged through fork PR #5; v1.39.6 tag baseline added |
 | 4 | Promote the qualified clean lineage to default `main` | Complete | `main` moved to `8c732a3`; old `main` archived exactly |
-| 5 | Refresh the clean lineage to stable upstream v1.41.4 | In progress | Release lock must survive upstream workflow changes |
-| 6 | Reassess and rebuild every approved specification in isolated fork PRs | Authorized | Step 5 merged and verified |
+| 5 | Refresh the clean lineage to stable upstream v1.41.4 | Complete | Fork PR #7 merged at `b7d97c8`; every platform build passed; release skipped |
+| 6 | Reassess and rebuild every approved specification in isolated fork PRs | Audit complete | Publish the documentation-only audit PR, then runtime PRs may proceed |
 | 7 | Remove only approved unnecessary repository material | Deferred | Separate evidence-based cleanup after the final build |
 
 ## 4. Ordered feature backlog
@@ -77,8 +77,8 @@ Do not re-rank merely because a branch was opened or CI passed.
 |---:|---|---|---|---|
 | 1 | Atomic settings writes | Upstream candidate | Queued | Prevent interrupted saves from truncating configuration |
 | 2 | Corrupt-settings recovery and last-known-good backup | Upstream candidate | Queued | Recover source lists and preserve corrupt evidence |
-| 3 | Nil and unknown Settings value safety | Upstream candidate | Queued | Keep the complete Settings screen usable with old or missing values |
-| 4 | Remove the source package and metadata sidecar together | Upstream candidate | Queued | Make installed-source state truthful |
+| 3 | Nil and unknown Settings value safety | Use upstream | Supplied by v1.41.4 | Current widgets safely handle nil, unknown, and wrong-type values |
+| 4 | Remove the source package and metadata sidecar together | Use upstream | Supplied by v1.41.4 | Uninstall covers package, metadata, and probe files for all four source families |
 | 5 | Keep missing-source library entries visible | Upstream candidate | Queued | Preserve visible access to user-owned membership and progress |
 | 6 | Warn before uninstall with affected manga count | Upstream candidate | Queued | Make orphaning consequences explicit before action |
 | 7 | Preserve and aggregate source errors honestly | Upstream candidate | Queued | Replace repeated opaque failures with actionable source summaries |
@@ -88,18 +88,46 @@ Do not re-rank merely because a branch was opened or CI passed.
 | 11 | Back to library | Upstream candidate | Queued | Restore one independently reviewable navigation outcome |
 | 12 | Configurable library tile metadata | Upstream candidate | Queued | Restore useful counts without N+1 database work |
 | 13 | Deterministic source provenance and catalog selection | Upstream candidate | Queued | Make provider and version choice exact and reproducible |
-| 14 | Source update visibility and source-list management | Upstream candidate | Queued | Make stale and unavailable dependencies recoverable on-device |
+| 14 | Source update visibility and source-list management | Upstream candidate | Partially supplied | v1.41.4 adds basic version display and list add/remove; cache, exact URLs, ordering, disable, coverage preview, export, and import remain |
 | 15 | Diagnostics and source-aware search improvements | Upstream candidate | Queued | Diagnose bounded failures and preserve source identity in search |
-| 16 | Optional UX after reassessment | Decide at Gate 2 | Deferred | Includes manga-tap flow, storage title, collection covers, and long-title wrapping |
+| 16 | Manga-tap action dialog | Fork-only | Queued | Retain both Continue Reading and Chapter List without hiding either action |
+| 17 | Downloaded storage total in the library title | Fork-only | Queued | Reuse the existing aggregate endpoint; no per-item work |
+| 18 | Collection cover tiles | No accepted behavior | Not scheduled | The historical documents only said to consider this idea |
+| 19 | Long grid-title wrapping/shrinking | Use upstream | Supplied by v1.41.4 | Current grid and menu widgets already include bounded multiline/shrink behavior |
 
 Translations and tests remain with the outcome they support. Reading direction,
 page-turn style, and Back to library remain separate branches and PRs.
+
+### v1.41.4 audit summary
+
+| Area | Result |
+|---|---|
+| Settings robustness | Supplied upstream; do not rebuild |
+| Atomic settings writes | Missing; retain as isolated change |
+| Corruption recovery and backup | Missing; retain after atomic writes |
+| Hide fully read | Missing; retain |
+| Reader direction, page-turn style, Back to library | Missing; retain as three PRs |
+| Configurable tile metadata | Only a show/hide switch exists; retain the selected metadata fields without N+1 queries |
+| Manga-tap flow | Upstream has one configured direct action; retain the explicit two-choice dialog as fork-only behavior |
+| Library storage title | Existing aggregate storage endpoint makes the display cheap; retain as fork-only behavior |
+| Missing migration relaxation | Condition not proven on the preserved 13-migration database; do not add a global relaxation |
+| Source package cleanup | Supplied upstream for all current package types |
+| Truthful source inventory and missing library rows | Missing; retain |
+| Catalog cache, exact provenance, deterministic choice | Missing; retain |
+| Structured search errors | Partially supplied; normalize and aggregate with refresh and persisted health |
+| Source/list UI | Partially supplied; extend through the current source specification |
+| Search source identity | Base/cover are supplied; grid and included-source selection remain |
+| Diagnosis | Missing; retain as bounded read-only work |
+| Canonical-id migration | Explicit later capability; not part of this rebuild |
+| Collection covers | Idea only; no accepted requirements, so no implementation |
+| Long grid titles | Current widgets already wrap/shrink; do not duplicate |
 
 ## 5. Branch and PR map
 
 | Branch or PR | Base or target | Purpose | State | Publication constraint |
 |---|---|---|---|---|
-| `codex/sync-upstream-v1.41.4` | Fork `main` at `8c732a3` | Merge exact stable upstream v1.41.4 and retain manual release control | Local merge at `c9869e4`; validation pending | Fork-only; never release |
+| [Fork PR #7](https://github.com/kravenos/krakuyomi/pull/7), `codex/sync-upstream-v1.41.4` | Fork `main` at `8c732a3` | Merge exact stable upstream v1.41.4 and retain manual release control | Merged at `b7d97c8`; all checks passed; release skipped | Fork-only; never release |
+| `codex/specify-v1.41.4-rebuild` | Fork `main` | Record the current audit and accepted source-management contract | Documentation complete; fork PR pending | Fork-only; never upstream |
 | `codex/update-rebuild-plan` | Target `codex/upstream-rebuild` | Record completed qualification, release control, and tag baseline | Merged through fork PR #6 at `8c732a3` | Fork-only |
 | [Fork PR #5](https://github.com/kravenos/krakuyomi/pull/5), `codex/freeze-automatic-releases` | Target `codex/upstream-rebuild` | Preserve builds while requiring deliberate release publication | Squash-merged at `330d367` | Fork-only; no release created |
 | [Fork PR #4](https://github.com/kravenos/krakuyomi/pull/4), `codex/qualify-upstream-baseline` | Target `codex/upstream-rebuild` | Artifact, backup, and Kindle qualification evidence | Squash-merged at `95781ce` | Fork-only |
@@ -116,6 +144,8 @@ No upstream candidate is active or awaiting review; all authorized work is fork-
 |---|---|---|---|
 | Upstream v1.41.4 Build | `9b06ec2d0cce4fa93e9f04c07e5b115a92f9fe84` | Passed | Upstream run 33117913535 produced the stable release artifacts |
 | Upstream v1.41.4 release | `df0ef29fc07d87966a1a2558ab257743f29efaf4` | Passed | Published stable on 2026-08-27; not copied as a fork release |
+| Fork v1.41.4 refresh | [Fork PR #7](https://github.com/kravenos/krakuyomi/pull/7) | Passed | Rust, Lua, schema, desktop, macOS, three Kindle, and three Android jobs passed; release skipped; merged at `b7d97c8` |
+| Fork v1.41.4 tag | `v1.41.4` at `df0ef29fc07d87966a1a2558ab257743f29efaf4` | Passed | Exact upstream release tag commit; no fork GitHub release created |
 | v1.41.4 fork snapshot scope | `c9869e4` versus `v1.41.4` | Passed | Snapshot differs only in `.github/workflows/build.yml`, `PLAN.md`, and `SPEC.md` before the plan commit |
 | Upstream CI | `443652e1bb717ea546041497dff53531489537c0` | Passed | [Upstream run 30637032464](https://github.com/tachibana-shin/rakuyomi/actions/runs/30637032464) |
 | Upstream Build | `443652e1bb717ea546041497dff53531489537c0` | Passed | [Upstream run 30637032762](https://github.com/tachibana-shin/rakuyomi/actions/runs/30637032762) |
@@ -285,10 +315,10 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Finish and validate the v1.41.4 fork refresh, merge its fork PR after review and
-green checks, then audit every rebuild and source-management requirement against
-that exact baseline. Implement each remaining outcome through its own fork PR,
-ending with one combined KindleHF build. Do not open upstream PRs or releases.
+Open and merge the documentation-only audit PR after its checks pass, then open
+the already isolated atomic-settings PR as the first runtime change. Continue
+one fork PR per accepted outcome and finish with one combined KindleHF build.
+Do not open upstream PRs or releases.
 
 ## 11. Historical references
 

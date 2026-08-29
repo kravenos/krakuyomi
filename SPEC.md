@@ -27,9 +27,9 @@ must earn its place through the six gates in this document.
 RakuYomi consists of:
 
 - a LuaJIT 5.1-compatible KOReader frontend;
-- a Rust 1.95.0 Axum HTTP backend;
+- a Rust 1.97.1 Axum HTTP backend;
 - SQLite persistence;
-- WASM and JavaScript manga sources;
+- Aidoku/WASM, LNReader, MangaYomi, and Keiyoushi manga sources;
 - a JSON boundary between the Lua frontend and Rust backend.
 
 Preserve these upstream architectures and targets:
@@ -257,7 +257,7 @@ regression:
 |---|---|---|---|
 | Atomic settings writes | F-01 | Keep, isolated | Upstream candidate |
 | Corrupt-settings recovery and last-known-good backup | F-01 | Keep, isolated | Upstream candidate |
-| Nil and unknown Settings value safety | F-02 | Keep | Upstream candidate |
+| Nil and unknown Settings value safety | F-02 | Supplied by v1.41.4 | Use upstream |
 | Configurable library tile metadata | F-03 | Keep | Upstream candidate |
 | Manga-tap and chapter-list choice | F-04 | Reassess on device | Undecided |
 | Hide fully read manga | F-05 | Keep | Upstream candidate |
@@ -266,22 +266,24 @@ regression:
 | Back to library | F-06 | Keep, isolated | Upstream candidate |
 | Total downloaded size as library title | F-07 | Reassess on device | Undecided |
 | Compatibility for historical missing migrations | F-08 | Conditional; prefer a one-time bridge | Fork compatibility only |
-| Manual Build workflow trigger | F-09 | Reassess with release control | Fork operational |
+| Manual Build workflow trigger | F-09 | Supplied with fork release control | Fork operational |
 | Localization updates | F-10 | Derived; keep with each retained UI feature | Same as feature |
 | Old fork releases and changelog entries | F-11 | Do not port | None |
 
-### Planned, not previously implemented
+### Current source-management outcomes
 
-The incident supports these outcomes, but their presence here must never be
-reported as restored behavior:
+The accepted current contract is [SOURCE-MANAGEMENT-SPEC.md](SOURCE-MANAGEMENT-SPEC.md).
+Upstream v1.41.4 already supplies broad package/sidecar removal and a basic
+source-list screen. The remaining outcomes must be delivered in the isolated
+order defined by that specification:
 
-- remove both a source package and its sidecar during uninstall;
+- load source files independently and expose truthful local inventory;
 - keep missing-source library entries visible;
 - warn before uninstall with the affected manga count;
-- preserve and aggregate source failures honestly;
-- select source provenance and catalog candidates deterministically;
-- expose source updates and manage exact source-list URLs;
-- add bounded diagnosis and source-aware search improvements;
+- cache validated catalogs and select exact provenance deterministically;
+- preserve, classify, aggregate, and bound source failure evidence;
+- expose complete source/list management and included-source search;
+- add bounded read-only diagnosis;
 - consider collection cover tiles, long-title wrapping, and other optional UX
   only after higher-priority safety work.
 
@@ -296,10 +298,9 @@ Use these immutable archive records as evidence:
 - [recovery migration tool](https://github.com/kravenos/krakuyomi/blob/44794ff8112ae3d40bded3fea0cbd9175434d72a/scripts/migrate-mangafire-ids.py);
 - [recovery migration regression tests](https://github.com/kravenos/krakuyomi/blob/44794ff8112ae3d40bded3fea0cbd9175434d72a/scripts/tests/test_migrate_mangafire_ids.py).
 
-Before implementing source management, create a current-baseline feature
-specification. Revalidate the archived error-path observations because upstream
-1.39.6 changed WASM error handling after that audit. Do not copy unapproved API
-sketches or unresolved decisions into this root specification.
+The accepted current-baseline specification is
+[SOURCE-MANAGEMENT-SPEC.md](SOURCE-MANAGEMENT-SPEC.md). It records the v1.41.4
+audit and supersedes the archived draft's unresolved API and policy choices.
 
 ## 13. Success criteria
 
