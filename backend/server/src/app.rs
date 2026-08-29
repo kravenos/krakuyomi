@@ -19,7 +19,6 @@ use axum::response::Response;
 use axum::{routing::get, Json, Router};
 use shared::chapter_storage::ChapterStorage;
 use shared::database::Database;
-use shared::settings::Settings;
 use shared::source_manager::SourceManager;
 use shared::usecases::install_update::cleanup_update_backup;
 
@@ -208,23 +207,11 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
     let database = Database::new(&database_path)
         .await
         .context("couldn't open database file")?;
-    if !settings_path.exists() {
-        info!(
-            "settings file not found at {}, creating default",
-            settings_path.display()
-        );
-        fs::write(&settings_path, DEFAULT_SETTINGS_JSON).with_context(|| {
-            format!(
-                "couldn't write default settings file at {}",
-                settings_path.display()
-            )
-        })?;
-    }
     let cookies_path = home_path.join("cookies.json");
     shared::cookie_store::init_cookie_store_with_path(&cookies_path)
         .context("couldn't initialize cookie store")?;
-    let settings = Settings::from_file(&settings_path)
-        .with_context(|| format!("couldn't read settings file at {}", settings_path.display()))?;
+    let (settings, settings_recovery_message) =
+        crate::settings_recovery::load_settings_or_recover(&settings_path, DEFAULT_SETTINGS_JSON)?;
 
     shared::tls::set_proxy_url(settings.proxy_url.clone());
 
@@ -237,6 +224,10 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
         .unwrap_or(default_downloads_folder_path);
 
     let startup_log = crate::state::StartupLog::new();
+
+    if let Some(message) = settings_recovery_message {
+        startup_log.push(message).await;
+    }
 
     let mut chapter_storage = ChapterStorage::new(
         downloads_folder_path,
