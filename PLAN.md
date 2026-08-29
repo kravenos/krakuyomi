@@ -1,10 +1,10 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: Opening step 3 complete; release control is installed
-- Active gate: Closeout documentation; opening step 4 Gate 1 is next
-- Last verified: 2026-08-12
-- Active change: `codex/update-rebuild-plan`
-- Publication authority: The exact v1.39.6 tag and a plan-update pull request are approved; no plan merge, default-branch change, release, cleanup, or remote deletion is approved
+- Status: Unattended fork-only rebuild authorized; stable upstream refresh is in progress
+- Active gate: All six gates are pre-approved for the bounded fork-only program
+- Last verified: 2026-08-29
+- Active change: `codex/sync-upstream-v1.41.4`
+- Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
 durable requirements and policies are in [SPEC.md](SPEC.md). Keep detailed
@@ -15,24 +15,25 @@ feature behavior in separately approved feature specifications.
 | Item | Verified state |
 |---|---|
 | Upstream | `tachibana-shin/rakuyomi` |
-| Upstream branch | `main` at `58f1a4641854727f9f23765af88f49878f332801`; three runtime commits beyond the pinned baseline |
-| Pinned upstream release | [`v1.39.6`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.39.6) at `0ef01d0bab2ab90a436f4884fd3192f821d4a996` |
+| Upstream branch | `main` at `66d592f5118d00ef899a049032f5cad0c6ace2c0`; one unreleased test-only commit beyond the pinned baseline |
+| Pinned upstream release | [`v1.41.4`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.41.4) at `df0ef29fc07d87966a1a2558ab257743f29efaf4` |
 | Fork | `kravenos/krakuyomi` |
-| Clean rebuild branch | `codex/upstream-rebuild` at `330d367673d58bdf32ee168541dc0f9b45826ad4`; contains the pinned upstream code, fork governance, qualification evidence, and release control |
-| Fork default branch | Old fork lineage `main` at `c2a254e8c12761045a733d56fccf897209922c13` |
+| Clean rebuild branch | `codex/sync-upstream-v1.41.4` at merge commit `c9869e4`; contains exact upstream v1.41.4 plus fork governance and adapted release control |
+| Fork default branch | Clean rebuild `main` at `8c732a3592adf477d5def2a6634e9ba90cb92e92` pending the reviewed v1.41.4 refresh |
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
-| Fork release baseline tag | `v1.39.6` exactly matches upstream commit `0ef01d0`; no GitHub release was created |
-| Rebuild-branch CI | Fork PR #5 passed Rust tests, Lua checks, schema generation, and all seven platform builds; release was skipped |
+| Fork release baseline tag | `v1.39.6` remains exact; `v1.41.4` will be added only as an exact fork tag without creating a GitHub release after validation |
+| Rebuild-branch CI | The v1.39.6 fork baseline passed; v1.41.4 validation will cover Rust, Lua, schema generation, nine platform jobs, and skipped release jobs |
 
-The upstream release commit itself has no source-code Build run. Its code parent,
-`443652e1bb717ea546041497dff53531489537c0`, passed upstream CI and Build on
-2026-07-31, and `0ef01d0` adds only `CHANGELOG.md`. The official v1.39.6
-KindleHF release asset passed checksum, package, backup, rollback, and on-device
-validation and is the qualified baseline candidate for this rebuild.
+The v1.41.4 release commit `df0ef29` adds release metadata to code parent
+`9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
+the published stable artifacts. The official KindleHF asset is 15,892,561 bytes
+with SHA-256 `c4720bf29918266401ec0a4f6c677dda28cf887ebb7570ecd4f2dd0e54829e0b`.
+The fork must build its own exact candidate because its version metadata and
+release-control workflow differ from upstream.
 
-The three newer upstream commits remain deliberately outside the qualified
-baseline. Do not silently move the pinned rebuild branch.
+Upstream `66d592f` is deliberately excluded because it is one unreleased,
+test-only commit beyond v1.41.4.
 
 ## 2. Active program position
 
@@ -40,17 +41,17 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Record completion of release control and the tag baseline |
-| Classification | Fork governance documentation |
-| Gate 1 | Approved |
-| Gate 2 | Approved |
-| Gate 3 | Approved |
-| Gate 4 | Documentation update in progress |
-| Gate 5 | Not applicable; exact diff is documentation only |
-| Gate 6 | Branch and pull request approved; merge remains separate |
-| Branch base | `330d367673d58bdf32ee168541dc0f9b45826ad4` |
-| Intended fork PR target | `codex/upstream-rebuild` |
-| Intended upstream target | None |
+| Active outcome | Refresh the fork to stable upstream v1.41.4 without restoring automatic releases |
+| Classification | Fork-only baseline and release governance |
+| Gate 1 | Pre-approved; upstream and fork state verified |
+| Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
+| Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
+| Gate 4 | In progress on `codex/sync-upstream-v1.41.4` |
+| Gate 5 | Final combined KindleHF artifact after all isolated outcomes |
+| Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
+| Branch base | Fork `main` at `8c732a3592adf477d5def2a6634e9ba90cb92e92` |
+| Intended fork PR target | `main` |
+| Intended upstream target | None; the complete program is fork-only |
 
 ## 3. Opening program sequence
 
@@ -61,9 +62,10 @@ Do not combine these steps in one branch or PR.
 | 1 | Add fork-only `PLAN.md` and `SPEC.md` | Complete | Merged through fork PR #3 |
 | 2 | Qualify untouched upstream baseline and run Kindle smoke test | Complete | Merged through fork PR #4 |
 | 3 | Freeze automatic fork releases while preserving CI artifacts | Complete | Merged through fork PR #5; v1.39.6 tag baseline added |
-| 4 | Promote the qualified clean lineage to default `main` | Next | Step 3 complete |
-| 5 | Remove only approved unnecessary repository material | Pending | Step 4 completed and recovery archive verified |
-| 6 | Rebuild one isolated feature at a time | Pending | Steps 1-5 completed |
+| 4 | Promote the qualified clean lineage to default `main` | Complete | `main` moved to `8c732a3`; old `main` archived exactly |
+| 5 | Refresh the clean lineage to stable upstream v1.41.4 | In progress | Release lock must survive upstream workflow changes |
+| 6 | Reassess and rebuild every approved specification in isolated fork PRs | Authorized | Step 5 merged and verified |
+| 7 | Remove only approved unnecessary repository material | Deferred | Separate evidence-based cleanup after the final build |
 
 ## 4. Ordered feature backlog
 
@@ -97,20 +99,24 @@ page-turn style, and Back to library remain separate branches and PRs.
 
 | Branch or PR | Base or target | Purpose | State | Publication constraint |
 |---|---|---|---|---|
-| `codex/update-rebuild-plan` | Target `codex/upstream-rebuild` | Record completed qualification, release control, and tag baseline | Local documentation branch | Fork-only; merge requires explicit approval |
+| `codex/sync-upstream-v1.41.4` | Fork `main` at `8c732a3` | Merge exact stable upstream v1.41.4 and retain manual release control | Local merge at `c9869e4`; validation pending | Fork-only; never release |
+| `codex/update-rebuild-plan` | Target `codex/upstream-rebuild` | Record completed qualification, release control, and tag baseline | Merged through fork PR #6 at `8c732a3` | Fork-only |
 | [Fork PR #5](https://github.com/kravenos/krakuyomi/pull/5), `codex/freeze-automatic-releases` | Target `codex/upstream-rebuild` | Preserve builds while requiring deliberate release publication | Squash-merged at `330d367` | Fork-only; no release created |
 | [Fork PR #4](https://github.com/kravenos/krakuyomi/pull/4), `codex/qualify-upstream-baseline` | Target `codex/upstream-rebuild` | Artifact, backup, and Kindle qualification evidence | Squash-merged at `95781ce` | Fork-only |
 | [Fork PR #3](https://github.com/kravenos/krakuyomi/pull/3), `codex/fork-governance-docs` | Target `codex/upstream-rebuild` | Root fork governance | Merged at `a0efffb` | Fork-only |
-| `codex/upstream-rebuild` | Qualified v1.39.6 lineage plus fork governance and release control | Clean rebuild lineage | Remote at `330d367`, tested and release-frozen | Do not promote to `main` without opening-step-4 approval |
+| `codex/upstream-rebuild` | Qualified v1.39.6 lineage plus fork governance and release control | Clean rebuild lineage | Remote at `8c732a3`, equal to current fork `main` | Historical baseline after v1.41.4 refresh |
 | `codex/archive-pre-upstream-rebuild-2026-07-31` | Archive `44794ff` | Historical recovery point | Preserved locally and remotely | Never merge wholesale |
-| [Fork PR #2](https://github.com/kravenos/krakuyomi/pull/2), `test/bridge-url-fix` to old `main` | Old fork lineage | Legacy test/fix work | Open | Disposition before changing default `main` |
+| [Fork PR #2](https://github.com/kravenos/krakuyomi/pull/2), `test/bridge-url-fix` to old `main` | Old fork lineage | Legacy test/fix work | Closed as superseded; source branch retained | Never merge wholesale |
 
-No upstream candidate is active or awaiting review.
+No upstream candidate is active or awaiting review; all authorized work is fork-only.
 
 ## 6. Verification evidence
 
 | Evidence | Commit or artifact | Result | Notes |
 |---|---|---|---|
+| Upstream v1.41.4 Build | `9b06ec2d0cce4fa93e9f04c07e5b115a92f9fe84` | Passed | Upstream run 33117913535 produced the stable release artifacts |
+| Upstream v1.41.4 release | `df0ef29fc07d87966a1a2558ab257743f29efaf4` | Passed | Published stable on 2026-08-27; not copied as a fork release |
+| v1.41.4 fork snapshot scope | `c9869e4` versus `v1.41.4` | Passed | Snapshot differs only in `.github/workflows/build.yml`, `PLAN.md`, and `SPEC.md` before the plan commit |
 | Upstream CI | `443652e1bb717ea546041497dff53531489537c0` | Passed | [Upstream run 30637032464](https://github.com/tachibana-shin/rakuyomi/actions/runs/30637032464) |
 | Upstream Build | `443652e1bb717ea546041497dff53531489537c0` | Passed | [Upstream run 30637032762](https://github.com/tachibana-shin/rakuyomi/actions/runs/30637032762) |
 | Rebuild ref equality | `0ef01d0bab2ab90a436f4884fd3192f821d4a996` | Passed | Local, fork rebuild branch, upstream `main`, and `v1.39.6` matched at Gate 4 preflight |
@@ -251,40 +257,38 @@ the feature backlog has not been re-ranked.
 | Work | Status |
 |---|---|
 | Upstream PRs #256-#259 | Accepted and supplied by the clean baseline |
-| New upstream feature PRs | None |
+| Stable upstream refresh | v1.41.4 at `df0ef29`; exact code is being merged into the fork |
+| New upstream feature PRs | Prohibited for this unattended program |
 | Requested upstream revisions | None |
 | Fork governance documents | Intentionally never upstreamed |
 
 ## 8. Blockers and residual risks
 
-1. Fork `main` is still the old lineage; its replacement requires an explicit,
-   separately reviewed operation.
-2. Legacy fork PR #2 still targets `main` and may become misleading when that ref
-   changes.
+1. Upstream v1.41.4 materially rewrote source handling, so every historical
+   feature claim requires a fresh code-and-test audit before implementation.
+2. The final Kindle validation needs the device mounted and KOReader fully
+   exited; automated evidence cannot substitute for Corvin's observed UI results.
 3. Ignored recovery material under `dist/` includes unique databases, source
    packages, settings, mappings, and poster repairs. It is not approved for
    deletion and has not yet been verified in an external archive.
-4. The archived source-management specification predates upstream 1.39.6 WASM
+4. The archived source-management specification predates upstream 1.41.4 source
    error changes; error-path claims require fresh discovery.
 5. Two tracked workflow filenames ending in `%` are cleanup candidates only;
    their purpose and references have not yet been proven.
 
 ## 9. Decisions awaiting approval
 
-- The disposition of legacy PR #2 before default-branch promotion.
-- The exact reviewed method for replacing old `main` without combining the old
-  and clean histories.
-- The external archive location and verification method for unique recovery
-  material before cleanup.
-
-Feature-specific decisions remain deferred to each feature's Gate 2.
+All six gates are pre-approved for the bounded fork-only run. Unresolved feature
+details must use the safest behavior consistent with the specifications and
+existing project patterns. A genuine data-loss, security, or missing-authority
+conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Merge the one-file plan closeout after review, then run opening-step-4 Gate 1:
-inspect branch protection, legacy PR #2, the archived old lineage, the exact
-`main` replacement method, and the post-promotion build-only check. Do not
-change `main`, release, clean files, or delete remote state during discovery.
+Finish and validate the v1.41.4 fork refresh, merge its fork PR after review and
+green checks, then audit every rebuild and source-management requirement against
+that exact baseline. Implement each remaining outcome through its own fork PR,
+ending with one combined KindleHF build. Do not open upstream PRs or releases.
 
 ## 11. Historical references
 
