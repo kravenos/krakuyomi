@@ -8,6 +8,7 @@ local logger = require("logger")
 local _ = require("gettext+")
 local Backend = require("Backend")
 local shallow_clone = require("utils/shallowClone")
+local CbzDocument = require("extensions/CbzDocument")
 
 local Testing = require('testing')
 
@@ -56,6 +57,7 @@ function MangaReader:show(options)
   self.on_open_chapter = options.on_open_chapter
   self.chapter = options.chapter
   self.chapters = options.chapters
+  CbzDocument:registerChapterFile(options.path, options.chapter)
   -- Global viewer override takes priority over per-manga/source viewer.
   local global_viewer = G_reader_settings:readSetting('rakuyomi_global_viewer')
   if global_viewer ~= nil and MangaViewer[global_viewer] ~= nil then
@@ -472,7 +474,7 @@ function MangaReader:applyViewMode(ui)
   end
 
   if self.viewer ~= MangaViewer.DefaultViewer then
-    if G_reader_settings:nilOrFalse('rakuyomi_page_margin') and doc.configurable.page_margin > 0 then
+    if G_reader_settings:nilOrFalse('rakuyomi_page_margin') and doc.configurable.page_margin ~= nil and doc.configurable.page_margin > 0 then
       -- -- recommend option
       ui:handleEvent(Event:new("ConfigChange", "page_margin", 0))
       ui:handleEvent(Event:new("MarginUpdate", 0))

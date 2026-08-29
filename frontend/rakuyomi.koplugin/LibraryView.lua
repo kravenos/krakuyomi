@@ -8,6 +8,8 @@ local _ = require("gettext+")
 local Icons = require("Icons")
 local ButtonDialog = require("ui/widget/buttondialog")
 local InstalledSourcesListing = require("InstalledSourcesListing")
+local SourceListsListing = require("SourceListsListing")
+local LanguagesListing = require("LanguagesListing")
 local IconButton = require("ui/widget/iconbutton")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
@@ -29,6 +31,7 @@ local Settings = require("Settings")
 local TrackingSettings = require("TrackingSettings")
 local TrackingMenu = require("TrackingMenu")
 local Testing = require("testing")
+local TaskManagerView = require("TaskManagerView")
 local UpdateChecker = require("UpdateChecker")
 local calcLastReadText = require("utils/calcLastReadText")
 local findEntries = require("utils/findEntries")
@@ -54,18 +57,7 @@ local MenuItemCover = require("patch/MenuItemCover")
 local MenuItemGrid = require("patch/MenuItemGrid")
 local MenuCustom = require("patch/MenuCustom")
 local PlaylistDialog = require("PlaylistDialog")
-
-local function humanizeBytes(bytes)
-  if bytes < 1024 then
-    return bytes .. " B"
-  elseif bytes < 1024 * 1024 then
-    return string.format("%.1f KiB", bytes / 1024)
-  elseif bytes < 1024 * 1024 * 1024 then
-    return string.format("%.1f MiB", bytes / (1024 * 1024))
-  else
-    return string.format("%.1f GiB", bytes / (1024 * 1024 * 1024))
-  end
-end
+local formatBytes = require("utils/formatBytes")
 
 local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
 local SMALL_FONT_FACE = Font:getFace("smallffont")
@@ -379,11 +371,15 @@ function LibraryView:updateItems()
   if #self.mangas > 0 then
     self.item_table = self:generateItemTableFromMangas(self.mangas)
     self.multilines_show_more_text = false
+    self.single_line = true
     self.items_per_page = nil
+    self.single_line = true
   else
     self.item_table = self:generateEmptyViewItemTable()
     self.multilines_show_more_text = true
+    self.single_line = false
     self.items_per_page = 1
+    self.single_line = false
   end
 
   local mode = self:getLibraryViewMode()
@@ -868,6 +864,14 @@ function LibraryView:openMenu()
     },
     {
       {
+        text = "\u{e000}" .. " " .. _("Cleaner chapters"),
+        callback = function()
+          UIManager:close(dialog)
+
+          self:openCleanerDialog()
+        end
+      },
+      {
         text = Icons.FA_LIST .. " " .. _("Playlists"),
         callback = function()
           UIManager:close(dialog)
@@ -895,19 +899,33 @@ function LibraryView:openMenu()
     },
     {
       {
-        text = "\u{e000}" .. " " .. _("Cleaner chapters"),
-        callback = function()
-          UIManager:close(dialog)
-
-          self:openCleanerDialog()
-        end
-      },
-      {
         text = Icons.FA_PLUG .. " " .. _("Manage sources"),
         callback = function()
           UIManager:close(dialog)
 
           self:openInstalledSourcesListing()
+        end
+      },
+      {
+        text = Icons.REPO .. " " .. _("Source lists"),
+        callback = function()
+          UIManager:close(dialog)
+
+          local onReturnCallback = function()
+            self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
+          end
+          SourceListsListing:fetchAndShow(onReturnCallback)
+        end
+      },
+      {
+        text = Icons.LANG .. " " .. _("Languages"),
+        callback = function()
+          UIManager:close(dialog)
+
+          local onReturnCallback = function()
+            self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
+          end
+          LanguagesListing:fetchAndShow(onReturnCallback)
         end
       },
     },
@@ -1078,25 +1096,35 @@ function LibraryView:openMenu()
               .. _("Cores") .. ": " .. s.cpu.cores .. " | "
               .. _("Usage") .. ": " .. string.format("%.1f", s.cpu.usage_percent) .. "%")
             table.insert(parts, _("Memory") .. ": "
-              .. humanizeBytes(s.memory.used_bytes) .. " / " .. humanizeBytes(s.memory.total_bytes) .. " ("
+              .. formatBytes(s.memory.used_bytes) .. " / " .. formatBytes(s.memory.total_bytes) .. " ("
               .. string.format("%.1f", s.memory.used_bytes / math.max(s.memory.total_bytes, 1) * 100) .. "%)")
             table.insert(parts, _("Storage") .. ": "
-              .. humanizeBytes(s.storage.used_bytes) .. " / " .. humanizeBytes(s.storage.total_bytes) .. " ("
+              .. formatBytes(s.storage.used_bytes) .. " / " .. formatBytes(s.storage.total_bytes) .. " ("
               .. string.format("%.1f", s.storage.used_bytes / math.max(s.storage.total_bytes, 1) * 100) .. "%)")
             if s.tmpfs then
               table.insert(parts, _("Tmpfs") .. ": "
-                .. humanizeBytes(s.tmpfs.used_bytes) .. " / " .. humanizeBytes(s.tmpfs.total_bytes) .. " ("
+                .. formatBytes(s.tmpfs.used_bytes) .. " / " .. formatBytes(s.tmpfs.total_bytes) .. " ("
                 .. string.format("%.1f", s.tmpfs.used_bytes / math.max(s.tmpfs.total_bytes, 1) * 100) .. "%)")
             elseif s.tmpfs_mount_error then
               table.insert(parts, _("Tmpfs") .. ": " .. _("unavailable") .. "\n"
                 .. s.tmpfs_mount_error)
             end
-            table.insert(parts, _("Process RSS") .. ": " .. humanizeBytes(s.process.memory_rss_bytes)
-              .. " | " .. _("Virtual") .. ": " .. humanizeBytes(s.process.memory_virtual_bytes))
+            table.insert(parts, _("Process RSS") .. ": " .. formatBytes(s.process.memory_rss_bytes)
+              .. " | " .. _("Virtual") .. ": " .. formatBytes(s.process.memory_virtual_bytes))
 
             UIManager:show(InfoMessage:new {
               text = table.concat(parts, "\n\n"),
             })
+          end)
+        end
+      },
+      {
+        text = Icons.FA_GAUGE .. " " .. _("Task manager"),
+        callback = function()
+          UIManager:close(dialog)
+
+          TaskManagerView:fetchAndShow(function()
+            self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
           end)
         end
       },
@@ -1194,11 +1222,25 @@ function LibraryView:openSettingsSearchDialog()
   end
 
   local key = "exlucde_source_ids_select_search"
+  local options = {}
+  local format_languages = require("utils/formatLanguages")
+  for _, source_information in ipairs(response.body) do
+    local name = source_information.name
+    local languages_text = format_languages(source_information.languages)
+    if languages_text then
+      name = name .. " (" .. languages_text .. ")"
+    end
+    table.insert(options, {
+      id = source_information.id,
+      name = name,
+    })
+  end
+
   ---@diagnostic disable-next-line: redundant-parameter
   local dialog = CheckboxDialog:new {
     title = _("Exclude source search for") .. " \"" .. _("Search") .. "*\"",
     current = G_reader_settings:readSetting(key, {}),
-    options = response.body,
+    options = options,
     update_callback = function(value)
       G_reader_settings:saveSetting(key, value)
     end

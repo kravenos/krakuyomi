@@ -119,7 +119,7 @@ function OAuthFlowView:init()
   }
   table.insert(widgets, self.status_widget)
 
-  table.insert(widgets, VerticalSpan:new { width = Size.span.vertical_small })
+  table.insert(widgets, VerticalSpan:new { width = Size.span.vertical_default })
 
   -- Manual check button
   table.insert(widgets, Button:new {
@@ -285,6 +285,9 @@ function OAuthFlowView:saveTokens(body)
     s.mangabaka.access_token = body.tokens.access_token
     if body.tokens.refresh_token then
       s.mangabaka.refresh_token = body.tokens.refresh_token
+    end
+    if body.tokens.client_id then
+      s.mangabaka.client_id = body.tokens.client_id
     end
   else
     return false

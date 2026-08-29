@@ -4,9 +4,11 @@ use axum::extract::{Path, State as StateExtractor};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use shared::model::SourceId;
+use shared::model::{InstallOutcome, SourceId};
+use shared::resource_usage::SourceUsage;
 use shared::settings::SourceSettingValue;
 use shared::source::model::SettingDefinition;
+use shared::source::SourceBackend;
 use shared::usecases;
 
 use crate::model::SourceInformation;
@@ -35,6 +37,7 @@ pub fn routes() -> Router<State> {
             "/installed-sources/{source_id}/stored-settings",
             post(set_source_stored_settings),
         )
+        .route("/installed-sources/usage", get(get_all_source_usage))
 }
 
 async fn list_available_sources(
@@ -55,6 +58,13 @@ struct InstallSourceParams {
     source_id: String,
 }
 
+#[derive(Deserialize)]
+struct InstallSourceRequest {
+    source_of_source: String,
+    #[serde(default)]
+    languages: Option<Vec<String>>,
+}
+
 async fn install_source(
     StateExtractor(State {
         source_manager,
@@ -62,18 +72,24 @@ async fn install_source(
         ..
     }): StateExtractor<State>,
     Path(InstallSourceParams { source_id }): Path<InstallSourceParams>,
-    Json(source_of_source): Json<String>,
-) -> Result<Json<()>, AppError> {
-    usecases::install_source(
-        &mut *source_manager.lock().await,
+    Json(InstallSourceRequest {
+        source_of_source,
+        languages,
+    }): Json<InstallSourceRequest>,
+) -> Result<Json<InstallOutcome>, AppError> {
+    let source_lists = settings.lock().await.source_lists.clone();
+    // The use case locks the manager inside a blocking task: the eager probe
+    // (JS evaluation / runtime boot) must not run on the async worker.
+    let outcome = usecases::install_source(
         &source_manager,
-        &settings.lock().await.source_lists,
+        &source_lists,
         SourceId::new(source_id),
         source_of_source,
+        languages,
     )
     .await?;
 
-    Ok(Json(()))
+    Ok(Json(outcome))
 }
 
 async fn list_installed_sources(
@@ -98,8 +114,19 @@ async fn uninstall_source(
 
 async fn get_source_setting_definitions(
     SourceExtractor(source): SourceExtractor,
-) -> Json<Vec<SettingDefinition>> {
-    Json(usecases::get_source_setting_definitions(&source))
+) -> Result<Json<Vec<SettingDefinition>>, AppError> {
+    // LNReader/MangaYomi sources probe lazily on first use; the probe
+    // evaluates JS / boots a runtime, so run it off the async worker and
+    // propagate its outcome instead of silently returning no definitions.
+    let definitions = tokio::task::spawn_blocking(move || {
+        source.probe()?;
+        Ok::<_, anyhow::Error>(usecases::get_source_setting_definitions(&source))
+    })
+    .await
+    .map_err(|e| AppError::Other(anyhow::anyhow!("settings probe task failed: {e}")))?
+    .map_err(AppError::Other)?;
+
+    Ok(Json(definitions))
 }
 
 async fn get_source_stored_settings(
@@ -132,4 +159,85 @@ async fn set_source_stored_settings(
     )?;
 
     Ok(Json(()))
+}
+
+#[derive(serde::Serialize)]
+struct SourceUsageResponse {
+    #[serde(flatten)]
+    usage: SourceUsage,
+    disk_bytes: u64,
+}
+
+fn file_size(path: &std::path::Path) -> u64 {
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+}
+
+/// The on-disk files backing a source, without touching the filesystem.
+fn source_files_of(
+    source_manager: &shared::source_manager::SourceManager,
+    source: &shared::source::Source,
+) -> Vec<std::path::PathBuf> {
+    let source_id = SourceId::new(source.manifest().info.id.clone());
+    match &source.backend {
+        SourceBackend::Aidoku(_) => vec![source_manager.source_path(&source_id)],
+        SourceBackend::LnReader(_) => vec![
+            source_manager.lnreader_source_path(&source_id),
+            source_manager.lnreader_probe_path(&source_id),
+        ],
+        SourceBackend::Mangayomi(_) => vec![
+            source_manager.mangayomi_source_path(&source_id),
+            source_manager.mangayomi_js_source_path(&source_id),
+            source_manager.mangayomi_probe_path(&source_id),
+        ],
+        SourceBackend::Keiyoushi(_) => vec![
+            source_manager.keiyoushi_source_path(&source_id),
+            source_manager.keiyoushi_probe_path(&source_id),
+        ],
+    }
+}
+
+fn disk_bytes_of(files: &[std::path::PathBuf]) -> u64 {
+    files.iter().map(|p| file_size(p)).sum()
+}
+
+/// Returns the runtime usage of every installed source in one response,
+/// keyed by source id. Polling this endpoint keeps the demand-driven VM
+/// memory tracking alive (see [`ResourceRegistry::mark_active`]).
+async fn get_all_source_usage(
+    StateExtractor(State { source_manager, .. }): StateExtractor<State>,
+) -> Json<HashMap<String, SourceUsageResponse>> {
+    let source_manager = source_manager.lock().await;
+    let entries = source_manager
+        .sources_by_id
+        .iter()
+        .map(|(source_id, source)| {
+            // Read first: the first poll of a reopened view discards any
+            // stale memory data left from the previous session, then the
+            // poll itself restarts the demand-driven tracking.
+            let usage = source.usage.usage(source_id.value()).unwrap_or_default();
+            source.usage.mark_active();
+            let files = source_files_of(&source_manager, source);
+            (source_id.value().to_string(), usage, files)
+        })
+        .collect::<Vec<_>>();
+    drop(source_manager);
+
+    let out = tokio::task::spawn_blocking(move || {
+        entries
+            .into_iter()
+            .map(|(source_id, usage, files)| {
+                (
+                    source_id,
+                    SourceUsageResponse {
+                        usage,
+                        disk_bytes: disk_bytes_of(&files),
+                    },
+                )
+            })
+            .collect::<HashMap<_, _>>()
+    })
+    .await
+    .unwrap_or_default();
+
+    Json(out)
 }

@@ -1,3 +1,84 @@
+## [1.41.4](https://github.com/tachibana-shin/rakuyomi/compare/v1.41.3...v1.41.4) (2026-08-27)
+
+
+### Bug Fixes
+
+* **android:** register CbzDocument provider on Android too ([#327](https://github.com/tachibana-shin/rakuyomi/issues/327)) ([9b06ec2](https://github.com/tachibana-shin/rakuyomi/commit/9b06ec2d0cce4fa93e9f04c07e5b115a92f9fe84))
+* mmap and munmap calls to use ffi.C ([8fd5a4d](https://github.com/tachibana-shin/rakuyomi/commit/8fd5a4d90af01e1ee9481bf1d60f4c367e360804))
+
+## [1.41.3](https://github.com/tachibana-shin/rakuyomi/compare/v1.41.2...v1.41.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* alias `@/types/constants` lnreader ([17cc35c](https://github.com/tachibana-shin/rakuyomi/commit/17cc35c270d359f9a47fd27818765c407da7ee84)), closes [#324](https://github.com/tachibana-shin/rakuyomi/issues/324)
+
+## [1.41.2](https://github.com/tachibana-shin/rakuyomi/compare/v1.41.1...v1.41.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* rebuild focused backend fixes ([#314](https://github.com/tachibana-shin/rakuyomi/issues/314)) ([bd3cad5](https://github.com/tachibana-shin/rakuyomi/commit/bd3cad5e6a268afa4336398e9ab3d737711b7fcb))
+
+## [1.41.1](https://github.com/tachibana-shin/rakuyomi/compare/v1.41.0...v1.41.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* disable stream mode ([11e7d37](https://github.com/tachibana-shin/rakuyomi/commit/11e7d37613ce462e66ea4e8d72f8c5f465138e88))
+
+
+### Reverts
+
+* remove streaming reader from main (still in development on feat/stream-read) ([92bb8df](https://github.com/tachibana-shin/rakuyomi/commit/92bb8df93c6a3155758d77be003b59e0c0fb50c8))
+
+# [1.41.0](https://github.com/tachibana-shin/rakuyomi/compare/v1.40.3...v1.41.0) (2026-08-23)
+
+
+### Features
+
+* streaming chapter reader + dexvm protobuf support ([50e85a0](https://github.com/tachibana-shin/rakuyomi/commit/50e85a037fa1545a74058bede67c7941b044751d))
+
+## [1.40.3](https://github.com/tachibana-shin/rakuyomi/compare/v1.40.2...v1.40.3) (2026-08-21)
+
+
+### Bug Fixes
+
+* crash when saving settings with a large tracker/chat id ([#317](https://github.com/tachibana-shin/rakuyomi/issues/317)) ([87a36bc](https://github.com/tachibana-shin/rakuyomi/commit/87a36bc803a6e003f1f17b290ebb503409d4c6c0)), closes [#316](https://github.com/tachibana-shin/rakuyomi/issues/316)
+* record the SDK mode the Aidoku module actually booted as ([#311](https://github.com/tachibana-shin/rakuyomi/issues/311)) ([e2536a6](https://github.com/tachibana-shin/rakuyomi/commit/e2536a667eaed34abe59ada2ce117e31b98810c9)), closes [#304](https://github.com/tachibana-shin/rakuyomi/issues/304)
+* search and library missing post text ([#308](https://github.com/tachibana-shin/rakuyomi/issues/308)) ([e79d298](https://github.com/tachibana-shin/rakuyomi/commit/e79d298043520b576d2fff27785e9351dd8c93dd))
+
+## [1.40.2](https://github.com/tachibana-shin/rakuyomi/compare/v1.40.1...v1.40.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* link kindle server binary fully static ([#303](https://github.com/tachibana-shin/rakuyomi/issues/303)) ([6413d14](https://github.com/tachibana-shin/rakuyomi/commit/6413d14427cebbef7e0c6cab9f6696ac83bb15f9))
+* **release:** republish android plugin as a single rakuyomi-android.zip ([#302](https://github.com/tachibana-shin/rakuyomi/issues/302)) ([de4f3a4](https://github.com/tachibana-shin/rakuyomi/commit/de4f3a4c6bea8e5eccbf9e605cbc5486e0cdbdec)), closes [#296](https://github.com/tachibana-shin/rakuyomi/issues/296)
+
+## [1.40.1](https://github.com/tachibana-shin/rakuyomi/compare/v1.40.0...v1.40.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* condition for android build key in build-all.sh ([6e6e736](https://github.com/tachibana-shin/rakuyomi/commit/6e6e7369bf05638e09a3fc7decf2e488768d0c05))
+
+# [1.40.0](https://github.com/tachibana-shin/rakuyomi/compare/v1.39.6...v1.40.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* crash on tracking OAuth sign-in: Size.span.vertical_small does not exist ([#295](https://github.com/tachibana-shin/rakuyomi/issues/295)) ([5fcd0ee](https://github.com/tachibana-shin/rakuyomi/commit/5fcd0ee0e82ce7a1da14697fc1c08514c0631754))
+* fetch CBZ metadata from the server instead of executing a binary ([#300](https://github.com/tachibana-shin/rakuyomi/issues/300)) ([35d4c35](https://github.com/tachibana-shin/rakuyomi/commit/35d4c358e3b030fc87aca5ace128156e8b798e11)), closes [#287](https://github.com/tachibana-shin/rakuyomi/issues/287)
+* fix mangabaka tracking via API Key and OAuth2 ([#286](https://github.com/tachibana-shin/rakuyomi/issues/286)) ([0ad505e](https://github.com/tachibana-shin/rakuyomi/commit/0ad505ef83bc271a6502957fc87ee168c050fbb2))
+* reconnect to Wi-Fi before retrying a failed chapter download ([#299](https://github.com/tachibana-shin/rakuyomi/issues/299)) ([97afb7c](https://github.com/tachibana-shin/rakuyomi/commit/97afb7cdd89534141a68e5397d0e87c33a9eb4a1)), closes [#277](https://github.com/tachibana-shin/rakuyomi/issues/277)
+* **tracking:** include NSFW entries in MyAnimeList search ([#298](https://github.com/tachibana-shin/rakuyomi/issues/298)) ([212b082](https://github.com/tachibana-shin/rakuyomi/commit/212b08249f8e5f31ba42cb38c941b1145f46b0e3))
+
+
+### Features
+
+* support extension LNReader, Mangayomi (js, dart), Tachiyomi/Mihon ([#296](https://github.com/tachibana-shin/rakuyomi/issues/296)) ([a2d95f1](https://github.com/tachibana-shin/rakuyomi/commit/a2d95f1fb0184e90412f38c21a1e70cd04ab5656))
+
 ## [1.39.6](https://github.com/tachibana-shin/rakuyomi/compare/v1.39.5...v1.39.6) (2026-07-31)
 
 
