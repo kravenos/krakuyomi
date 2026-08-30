@@ -163,6 +163,34 @@ impl Database {
         Ok(rows.into_iter().map(|row| row.manga_id()).collect())
     }
 
+    /// Counts library manga belonging to any of the supplied source ids in
+    /// one bounded query. Duplicate source ids do not affect the count.
+    pub async fn count_library_mangas_for_sources(&self, source_ids: &[SourceId]) -> Result<usize> {
+        let mut source_ids = source_ids
+            .iter()
+            .map(|source_id| source_id.value().clone())
+            .collect::<Vec<_>>();
+        source_ids.sort();
+        source_ids.dedup();
+        if source_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut query =
+            QueryBuilder::<Sqlite>::new("SELECT COUNT(*) FROM manga_library WHERE source_id IN (");
+        let mut separated = query.separated(", ");
+        for source_id in source_ids {
+            separated.push_bind(source_id);
+        }
+        separated.push_unseparated(")");
+        let count = query
+            .build_query_scalar::<i64>()
+            .fetch_one(&*self.pool.read().await)
+            .await?;
+
+        Ok(count.max(0) as usize)
+    }
+
     pub async fn get_manga_library_and_status(&self) -> Result<Vec<(MangaId, PublishingStatus)>> {
         let rows = sqlx::query!(
             r#"
@@ -3745,5 +3773,30 @@ mod tests {
             library[0].source_information.name,
             "Missing source: missing.source"
         );
+    }
+
+    #[tokio::test]
+    async fn source_uninstall_count_is_grouped_and_read_only() {
+        let directory = tempdir().unwrap();
+        let database = Database::new(&directory.path().join("database.sqlite"))
+            .await
+            .unwrap();
+        let first_source = SourceId::new("first.source".to_owned());
+        let second_source = SourceId::new("second.source".to_owned());
+        for manga_id in [
+            MangaId::new(first_source.clone(), "one".to_owned()),
+            MangaId::new(first_source.clone(), "two".to_owned()),
+            MangaId::new(second_source.clone(), "three".to_owned()),
+        ] {
+            database.add_manga_to_library(manga_id).await.unwrap();
+        }
+
+        let count = database
+            .count_library_mangas_for_sources(&[first_source.clone(), second_source, first_source])
+            .await
+            .unwrap();
+
+        assert_eq!(count, 3);
+        assert_eq!(database.get_manga_library().await.unwrap().len(), 3);
     }
 }

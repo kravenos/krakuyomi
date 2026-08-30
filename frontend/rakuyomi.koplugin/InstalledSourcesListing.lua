@@ -127,12 +127,21 @@ end
 function InstalledSourcesListing:onContextMenuChoice(item)
   --- @type SourceInformation
   local source_information = item.source_information
+  local preview = Backend.getSourceUninstallPreview(source_information.id)
+  if preview.type == 'ERROR' then
+    ErrorDialog:show(preview.message)
+
+    return
+  end
+  local library_manga_count = preview.body.library_manga_count
 
   UIManager:show(ConfirmBox:new {
-    text = _("Do you want to remove the") .. " \"" .. source_information.name .. "\" " .. _("source?"),
-    ok_text = "Remove",
+    text = _("Do you want to remove the") .. " \"" .. source_information.name .. "\" " .. _("source?") ..
+        "\n\n" .. _("Library manga affected") .. ": " .. library_manga_count .. ". " ..
+        _("Library entries and downloaded chapters will be kept."),
+    ok_text = _("Remove"),
     ok_callback = function()
-      local response = Backend.uninstallSource(source_information.id)
+      local response = Backend.uninstallSource(source_information.id, library_manga_count)
 
       if response.type == 'ERROR' then
         ErrorDialog:show(response.message)

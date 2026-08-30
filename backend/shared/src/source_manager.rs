@@ -333,8 +333,8 @@ impl SourceManager {
     /// if present. Keiyoushi sources of the same APK share one file, so the
     /// removal clears every registered source of that extension.
     pub fn uninstall_any_source(&mut self, id: &SourceId) -> Result<()> {
-        let mut removed = Vec::new();
-        for path in [
+        let affected_source_ids = self.package_source_ids(id)?;
+        let mut package_paths = vec![
             self.source_path(id),
             self.lnreader_source_path(id),
             self.lnreader_probe_path(id),
@@ -343,47 +343,74 @@ impl SourceManager {
             self.mangayomi_probe_path(id),
             self.keiyoushi_source_path(id),
             self.keiyoushi_probe_path(id),
-        ] {
-            if path.exists() {
-                fs::remove_file(&path)?;
-                removed.push(path.clone());
+        ];
+        if let Some(loaded_path) = self.source_file_for_id(id) {
+            if loaded_path.parent() != Some(self.sources_folder.as_path()) {
+                bail!("loaded source path is outside the sources folder")
             }
-            let meta_path = path.with_extension("json");
-            if meta_path.exists() {
-                fs::remove_file(&meta_path)?;
+            package_paths.push(loaded_path);
+        }
+        package_paths.sort();
+        package_paths.dedup();
+        let mut artifact_paths = Vec::new();
+        for path in &package_paths {
+            artifact_paths.push(path.clone());
+            artifact_paths.push(path.with_extension("json"));
+            if let Ok(meta_path) = crate::source::BlockingSource::meta_source_path(path) {
+                artifact_paths.push(meta_path);
             }
-            if let Ok(meta_path) = crate::source::BlockingSource::meta_source_path(&path) {
-                if meta_path.exists() {
-                    fs::remove_file(&meta_path)?;
+        }
+        artifact_paths.sort();
+        artifact_paths.dedup();
+
+        for path in &artifact_paths {
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    bail!(
+                        "couldn't remove source artifact '{}': {error}",
+                        source_file_label(path)
+                    )
                 }
             }
         }
-        let removed: std::collections::HashSet<std::path::PathBuf> = removed.into_iter().collect();
-        // An APK/JS container can register several sources under one file
-        // (keiyoushi multiple extensions): every registered source whose
-        // file was removed is dropped together with the requested one, so
-        // the list never keeps dangling sources.
-        let doomed: Vec<SourceId> = self
-            .sources_by_id
-            .keys()
-            .filter(|id2| {
-                let candidates = [
-                    self.source_path(id2),
-                    self.lnreader_source_path(id2),
-                    self.mangayomi_source_path(id2),
-                    self.mangayomi_js_source_path(id2),
-                    self.keiyoushi_source_path(id2),
-                ];
-                candidates.iter().any(|p| removed.contains(p))
-            })
-            .cloned()
-            .collect();
-        for d in doomed {
-            self.sources_by_id.remove(&d);
-            self.file_sources.remove(d.value());
+        if let Some(remaining) = artifact_paths.iter().find(|path| path.exists()) {
+            bail!(
+                "source artifact '{}' remains after uninstall",
+                source_file_label(remaining)
+            );
         }
-        self.remove_package_statuses_for_paths(&removed);
+
+        for source_id in affected_source_ids {
+            self.sources_by_id.remove(&source_id);
+            self.file_sources.remove(source_id.value());
+        }
+        self.remove_package_statuses_for_paths(&package_paths);
         Ok(())
+    }
+
+    /// Returns every loaded source id removed when `id` is uninstalled.
+    /// Multi-source Keiyoushi extensions share one package and are returned
+    /// together so previews can count all affected library manga.
+    pub fn package_source_ids(&self, id: &SourceId) -> Result<Vec<SourceId>> {
+        validate_source_id(id)?;
+        let package_path = self.keiyoushi_source_path(id);
+        let mut source_ids = self
+            .sources_by_id
+            .iter()
+            .filter_map(|(source_id, source)| match &source.backend {
+                SourceBackend::Keiyoushi(source) if source.apk_path() == package_path => {
+                    Some(source_id.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if source_ids.is_empty() {
+            source_ids.push(id.clone());
+        }
+        source_ids.sort_by(|left, right| left.value().cmp(right.value()));
+        Ok(source_ids)
     }
 
     pub fn update_settings(
@@ -840,6 +867,25 @@ fn source_id_hint(path: &Path, kind: SourcePackageKind) -> Option<SourceId> {
     Some(SourceId::new(id))
 }
 
+fn source_file_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "unknown source file".to_owned())
+}
+
+fn validate_source_id(id: &SourceId) -> Result<()> {
+    let value = id.value();
+    if value.is_empty()
+        || value == "."
+        || value == ".."
+        || value.contains('/')
+        || value.contains('\\')
+    {
+        bail!("invalid source id")
+    }
+    Ok(())
+}
+
 impl SourceCollection for SourceManager {
     fn get_by_id(&self, id: &SourceId) -> Option<&Source> {
         self.sources_by_id.get(id)
@@ -974,5 +1020,89 @@ mod tests {
             guard.source_packages[0].source_ids,
             vec![SourceId::new("reload.source".to_owned())]
         );
+    }
+
+    #[test]
+    fn uninstall_removes_and_verifies_every_known_artifact() {
+        let directory = tempdir().expect("create sources directory");
+        let mut manager =
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager");
+        let source_id = SourceId::new("test.source".to_owned());
+        let package_paths = [
+            manager.source_path(&source_id),
+            manager.lnreader_source_path(&source_id),
+            manager.lnreader_probe_path(&source_id),
+            manager.mangayomi_source_path(&source_id),
+            manager.mangayomi_js_source_path(&source_id),
+            manager.mangayomi_probe_path(&source_id),
+            manager.keiyoushi_source_path(&source_id),
+            manager.keiyoushi_probe_path(&source_id),
+        ];
+        let mut artifact_paths = Vec::new();
+        for path in package_paths {
+            artifact_paths.push(path.clone());
+            artifact_paths.push(path.with_extension("json"));
+            artifact_paths.push(
+                crate::source::BlockingSource::meta_source_path(&path)
+                    .expect("derive metadata path"),
+            );
+        }
+        let loaded_path = directory.path().join("renamed-package.aix");
+        manager.file_sources.insert(
+            source_id.value().clone(),
+            loaded_path.to_string_lossy().into_owned(),
+        );
+        artifact_paths.push(loaded_path.clone());
+        artifact_paths.push(
+            crate::source::BlockingSource::meta_source_path(&loaded_path)
+                .expect("derive loaded package metadata path"),
+        );
+        artifact_paths.sort();
+        artifact_paths.dedup();
+        for path in &artifact_paths {
+            fs::write(path, b"test artifact").expect("write source artifact");
+        }
+
+        manager
+            .uninstall_any_source(&source_id)
+            .expect("remove source artifacts");
+
+        assert!(artifact_paths.iter().all(|path| !path.exists()));
+    }
+
+    #[test]
+    fn uninstall_rejects_path_traversal_source_id() {
+        let directory = tempdir().expect("create sources directory");
+        let outside = directory.path().join("outside.aix");
+        fs::write(&outside, b"must remain").expect("write outside sentinel");
+        let sources = directory.path().join("sources");
+        let mut manager = SourceManager::from_folder(sources, Settings::default())
+            .expect("create source manager");
+
+        let result = manager.uninstall_any_source(&SourceId::new("..\\outside".to_owned()));
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(outside).expect("read sentinel"), b"must remain");
+    }
+
+    #[test]
+    fn uninstall_rejects_loaded_path_outside_sources_folder() {
+        let directory = tempdir().expect("create test directory");
+        let outside = directory.path().join("outside.aix");
+        fs::write(&outside, b"must remain").expect("write outside sentinel");
+        let mut manager =
+            SourceManager::from_folder(directory.path().join("sources"), Settings::default())
+                .expect("create source manager");
+        let source_id = SourceId::new("safe.source".to_owned());
+        manager.file_sources.insert(
+            source_id.value().clone(),
+            outside.to_string_lossy().into_owned(),
+        );
+
+        let result = manager.uninstall_any_source(&source_id);
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(outside).expect("read sentinel"), b"must remain");
     }
 }

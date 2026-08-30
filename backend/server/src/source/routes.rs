@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axum::extract::{Path, State as StateExtractor};
+use axum::extract::{Path, Query, State as StateExtractor};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -25,6 +25,10 @@ pub fn routes() -> Router<State> {
         )
         .route("/installed-sources", get(list_installed_sources))
         .route("/sources/status", get(list_source_statuses))
+        .route(
+            "/installed-sources/{source_id}/uninstall-preview",
+            get(get_uninstall_preview),
+        )
         .route("/installed-sources/{source_id}", delete(uninstall_source))
         .route(
             "/installed-sources/{source_id}/setting-definitions",
@@ -146,13 +150,74 @@ async fn list_source_statuses(
     )
 }
 
-async fn uninstall_source(
-    StateExtractor(State { source_manager, .. }): StateExtractor<State>,
+#[derive(serde::Serialize)]
+struct SourceUninstallPreview {
+    source_ids: Vec<String>,
+    library_manga_count: usize,
+}
+
+async fn get_uninstall_preview(
+    StateExtractor(State {
+        source_manager,
+        database,
+        ..
+    }): StateExtractor<State>,
     Path(SourceParams { source_id }): Path<SourceParams>,
+) -> Result<Json<SourceUninstallPreview>, AppError> {
+    let source_ids = source_manager
+        .lock()
+        .await
+        .package_source_ids(&SourceId::new(source_id))?;
+    let library_manga_count = database
+        .count_library_mangas_for_sources(&source_ids)
+        .await?;
+
+    Ok(Json(SourceUninstallPreview {
+        source_ids: source_ids
+            .into_iter()
+            .map(|source_id| source_id.value().clone())
+            .collect(),
+        library_manga_count,
+    }))
+}
+
+#[derive(Deserialize)]
+struct UninstallSourceQuery {
+    confirmed_library_count: usize,
+}
+
+async fn uninstall_source(
+    StateExtractor(State {
+        source_manager,
+        database,
+        ..
+    }): StateExtractor<State>,
+    Path(SourceParams { source_id }): Path<SourceParams>,
+    Query(UninstallSourceQuery {
+        confirmed_library_count,
+    }): Query<UninstallSourceQuery>,
 ) -> Result<Json<()>, AppError> {
-    usecases::uninstall_source(&mut *source_manager.lock().await, SourceId::new(source_id))?;
+    let source_id = SourceId::new(source_id);
+    let mut source_manager = source_manager.lock().await;
+    let affected_source_ids = source_manager.package_source_ids(&source_id)?;
+    let current_library_count = database
+        .count_library_mangas_for_sources(&affected_source_ids)
+        .await?;
+    verify_uninstall_count(confirmed_library_count, current_library_count)?;
+
+    usecases::uninstall_source(&mut source_manager, source_id)?;
 
     Ok(Json(()))
+}
+
+fn verify_uninstall_count(confirmed: usize, current: usize) -> Result<(), AppError> {
+    if current == confirmed {
+        return Ok(());
+    }
+
+    Err(AppError::Conflict(format!(
+        "The library changed after this uninstall was reviewed (expected {confirmed}, now {current}). Review the source again before removing it."
+    )))
 }
 
 async fn get_source_setting_definitions(
@@ -283,4 +348,24 @@ async fn get_all_source_usage(
     .unwrap_or_default();
 
     Json(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::StatusCode;
+
+    use super::*;
+
+    #[test]
+    fn stale_uninstall_preview_is_rejected_as_a_conflict() {
+        let error = verify_uninstall_count(18, 19).expect_err("stale preview must fail");
+
+        assert_eq!(StatusCode::from(&error), StatusCode::CONFLICT);
+        assert!(matches!(error, AppError::Conflict(_)));
+    }
+
+    #[test]
+    fn unchanged_uninstall_preview_is_accepted() {
+        assert!(verify_uninstall_count(18, 18).is_ok());
+    }
 }
