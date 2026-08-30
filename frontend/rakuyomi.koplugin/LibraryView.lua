@@ -171,6 +171,12 @@ function LibraryView:fetchMangas(cleanup)
     return nil
   end
 
+  for _, manga in ipairs(response.body) do
+    if manga.source.missing then
+      manga.source.name = _("Missing source") .. ": " .. manga.source.id
+    end
+  end
+
   return response.body
 end
 

@@ -607,6 +607,10 @@ msgstr ""
 msgid "Library"
 msgstr ""
 
+#: ../LibraryView.lua:176
+msgid "Missing source"
+msgstr ""
+
 #: ../LibraryView.lua:462
 msgid "No mangas found in library"
 msgstr ""

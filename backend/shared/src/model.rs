@@ -111,6 +111,24 @@ pub struct SourceInformation {
     // source of source
     #[serde(skip)]
     pub source_of_source: Option<String>,
+    /// Whether this is a cached placeholder for a source that is not loaded.
+    #[serde(skip)]
+    pub missing: bool,
+}
+
+impl SourceInformation {
+    /// Builds a path-safe placeholder that keeps cached manga visible when
+    /// their source package is unavailable.
+    pub fn missing(id: SourceId) -> Self {
+        Self {
+            name: format!("Missing source: {}", id.value()),
+            id,
+            version: serde_json::Value::Null,
+            languages: Vec::new(),
+            source_of_source: None,
+            missing: true,
+        }
+    }
 }
 
 /// Accepts `["en", "vi"]` (Aidoku), `"English"` (LNReader) or `null` and
@@ -317,6 +335,7 @@ impl From<SourceManifest> for SourceInformation {
                 .or_else(|| value.info.lang.map(|lang| vec![lang]))
                 .unwrap_or_default(),
             source_of_source: value.source_of_source,
+            missing: false,
         }
     }
 }
@@ -556,6 +575,16 @@ mod tests {
         };
         let info = SourceInformation::from(manifest);
         assert_eq!(info.languages, vec!["vi".to_string()]);
+    }
+
+    #[test]
+    fn missing_source_information_preserves_the_real_id() {
+        let info = SourceInformation::missing(SourceId::new("gone.source".to_owned()));
+
+        assert_eq!(info.id.value(), "gone.source");
+        assert_eq!(info.name, "Missing source: gone.source");
+        assert!(info.missing);
+        assert!(info.version.is_null());
     }
 
     #[test]

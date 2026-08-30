@@ -14,6 +14,7 @@ use shared::model::{
     ChapterId, MangaId, NotificationInformation, TrackingCandidate, TrackingService,
     TrackingSyncDirection, TrackingSyncResult,
 };
+use shared::source_collection::SourceCollection;
 use shared::usecases;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -543,9 +544,9 @@ async fn get_cached_manga_details(
         database,
         chapter_storage,
         cancel_token_store,
+        source_manager,
         ..
     }): StateExtractor<State>,
-    SourceExtractor(source): SourceExtractor,
     Path(params): Path<MangaChaptersPathParams>,
     Query(GetCheckMangasUpdate { cancel_id }): Query<GetCheckMangasUpdate>,
 ) -> Result<Json<(shared::source::model::Manga, f64)>, AppError> {
@@ -555,9 +556,20 @@ async fn get_cached_manga_details(
 
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    let manga =
-        usecases::get_cached_manga_details(&token.0, &database, chapter_storage, &source, manga_id)
-            .await?;
+    let source = source_manager
+        .lock()
+        .await
+        .get_by_id(manga_id.source_id())
+        .cloned();
+
+    let manga = usecases::get_cached_manga_details(
+        &token.0,
+        &database,
+        chapter_storage,
+        source.as_ref(),
+        manga_id,
+    )
+    .await?;
 
     if let Some(manga) = manga {
         Ok(Json(manga))
@@ -650,9 +662,9 @@ async fn download_manga_chapter(
         chapter_storage,
         settings,
         cancel_token_store,
+        source_manager,
         ..
     }): StateExtractor<State>,
-    SourceExtractor(source): SourceExtractor,
     Path(params): Path<DownloadMangaChapterParams>,
     Query(query): Query<DownloadQuery>,
     Json(cancel_id): Json<Option<usize>>,
@@ -672,6 +684,27 @@ async fn download_manga_chapter(
     };
 
     let chapter_id = ChapterId::from(params);
+    if use_ram {
+        if let Some((path, errors)) = cs.get_stored_chapter_and_errors(&chapter_id, true)? {
+            return Ok(Json((
+                path.to_string_lossy().into_owned(),
+                errors.unwrap_or_default(),
+            )));
+        }
+    }
+    if let Some((path, errors)) = cs.get_stored_chapter_and_errors(&chapter_id, false)? {
+        return Ok(Json((
+            path.to_string_lossy().into_owned(),
+            errors.unwrap_or_default(),
+        )));
+    }
+
+    let source = source_manager
+        .lock()
+        .await
+        .get_by_id(chapter_id.source_id())
+        .cloned()
+        .ok_or(AppError::SourceNotFound)?;
     let output_path = usecases::fetch_manga_chapter(
         &token.0,
         &db,

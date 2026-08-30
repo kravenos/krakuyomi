@@ -46,7 +46,7 @@ end
 --- @field timeout number? The timeout used for this request. If unset, the default value for the platform will be used (usually 60 seconds).
 
 --- @class SuccessfulResponse<T>: { type: 'SUCCESS', body: T }
---- @class ErrorResponse: { type: 'ERROR', status: number, message: string }
+--- @class ErrorResponse: { type: 'ERROR', status: number, message: string, code: string|nil, retryable: boolean }
 
 --- Performs a HTTP request, using JSON to encode the request body and to decode the response body.
 --- @private
@@ -108,6 +108,8 @@ function Backend.requestJson(request)
       type = 'ERROR',
       status = response.status,
       message = tostring(response.body),
+      code = nil,
+      retryable = false,
     }
   end
 
@@ -118,7 +120,13 @@ function Backend.requestJson(request)
       error_message = (parsed_body.error or "Request failed (status: ") .. response.status .. ")"
     end
 
-    return { type = 'ERROR', status = response.status, message = error_message }
+    return {
+      type = 'ERROR',
+      status = response.status,
+      message = error_message,
+      code = parsed_body.code,
+      retryable = parsed_body.retryable == true,
+    }
   end
 
   return { type = 'SUCCESS', body = replaceRapidJsonNullWithNilRecursively(parsed_body) }
@@ -229,9 +237,10 @@ end
 --- @class SourceInformation
 --- @field id string The ID of the source.
 --- @field name string The name of the source.
---- @field version string|number The version of the source, as published by the source: a number for Aidoku sources, a string for LNReader sources.
+--- @field version string|number|nil The version of the source, or nil when the source is missing.
 --- @field languages string[] The languages of the source: language codes for Aidoku sources, language names for LNReader sources. Empty when the source list publishes no language information.
 --- @field source_of_source string|nil The domain source load source.
+--- @field missing boolean Whether the source package is currently unavailable.
 
 --- @class Manga
 --- @field id string The ID of the manga.
