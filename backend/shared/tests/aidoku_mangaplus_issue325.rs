@@ -82,7 +82,7 @@ async fn mangaplus_page_list_issue325() {
         .install_source(
             &SourceId::new(SOURCE_ID.to_string()),
             std::fs::read(&file).unwrap(),
-            "issue325-test".into(),
+            "issue325-test".to_string(),
             &arc_manager,
         )
         .unwrap();

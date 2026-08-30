@@ -114,6 +114,18 @@ pub struct SourceInformation {
     /// Whether this is a cached placeholder for a source that is not loaded.
     #[serde(skip)]
     pub missing: bool,
+    /// Stable id of the exact catalog used to install this source.
+    #[serde(skip)]
+    pub catalog_list_id: Option<String>,
+    /// Exact normalized configured provider URL used for installation.
+    #[serde(skip)]
+    pub provider_url: Option<Url>,
+    /// Exact resolved catalog URL used for the installed revision.
+    #[serde(skip)]
+    pub resolved_provider_url: Option<Url>,
+    /// Version selected from the catalog at installation time.
+    #[serde(skip)]
+    pub installed_version: Option<serde_json::Value>,
 }
 
 impl SourceInformation {
@@ -127,6 +139,10 @@ impl SourceInformation {
             languages: Vec::new(),
             source_of_source: None,
             missing: true,
+            catalog_list_id: None,
+            provider_url: None,
+            resolved_provider_url: None,
+            installed_version: None,
         }
     }
 }
@@ -336,6 +352,10 @@ impl From<SourceManifest> for SourceInformation {
                 .unwrap_or_default(),
             source_of_source: value.source_of_source,
             missing: false,
+            catalog_list_id: None,
+            provider_url: None,
+            resolved_provider_url: None,
+            installed_version: None,
         }
     }
 }

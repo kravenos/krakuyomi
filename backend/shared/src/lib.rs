@@ -11,6 +11,7 @@ pub mod model;
 pub mod resource_usage;
 pub mod settings;
 pub mod source;
+pub mod source_catalog;
 pub mod source_collection;
 pub mod source_manager;
 pub mod tls;

@@ -19,6 +19,7 @@ use crate::AppError;
 pub fn routes() -> Router<State> {
     Router::new()
         .route("/available-sources", get(list_available_sources))
+        .route("/source-catalogs/refresh", post(list_available_sources))
         .route(
             "/available-sources/{source_id}/install",
             post(install_source),
@@ -46,10 +47,14 @@ pub fn routes() -> Router<State> {
 }
 
 async fn list_available_sources(
-    StateExtractor(State { settings, .. }): StateExtractor<State>,
+    StateExtractor(State {
+        settings,
+        catalog_cache_path,
+        ..
+    }): StateExtractor<State>,
 ) -> Result<Json<Vec<SourceInformation>>, AppError> {
     let source_lists = settings.lock().await.source_lists.clone();
-    let available_sources = usecases::list_available_sources(source_lists)
+    let available_sources = usecases::list_available_sources(&source_lists, catalog_cache_path)
         .await?
         .into_iter()
         .map(SourceInformation::from)
@@ -65,7 +70,8 @@ struct InstallSourceParams {
 
 #[derive(Deserialize)]
 struct InstallSourceRequest {
-    source_of_source: String,
+    list_id: String,
+    version: serde_json::Value,
     #[serde(default)]
     languages: Option<Vec<String>>,
 }
@@ -74,11 +80,13 @@ async fn install_source(
     StateExtractor(State {
         source_manager,
         settings,
+        catalog_cache_path,
         ..
     }): StateExtractor<State>,
     Path(InstallSourceParams { source_id }): Path<InstallSourceParams>,
     Json(InstallSourceRequest {
-        source_of_source,
+        list_id,
+        version,
         languages,
     }): Json<InstallSourceRequest>,
 ) -> Result<Json<InstallOutcome>, AppError> {
@@ -88,8 +96,10 @@ async fn install_source(
     let outcome = usecases::install_source(
         &source_manager,
         &source_lists,
+        &catalog_cache_path,
         SourceId::new(source_id),
-        source_of_source,
+        list_id,
+        version,
         languages,
     )
     .await?;
