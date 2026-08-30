@@ -85,7 +85,7 @@ async fn search_smoke(id: &str) {
         .install_source(
             &SourceId::new(id.clone()),
             std::fs::read(&file).unwrap(),
-            "aidoku-issue304".into(),
+            "aidoku-issue304".to_string(),
             &Arc::new(tokio::sync::Mutex::new(manager.clone())),
         )
         .unwrap();

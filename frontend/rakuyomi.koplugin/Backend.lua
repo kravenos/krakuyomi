@@ -241,6 +241,13 @@ end
 --- @field languages string[] The languages of the source: language codes for Aidoku sources, language names for LNReader sources. Empty when the source list publishes no language information.
 --- @field source_of_source string|nil The domain source load source.
 --- @field missing boolean Whether the source package is currently unavailable.
+--- @field list_id string|nil Stable identity of the exact configured source list.
+--- @field provider_url string|nil Exact normalized configured source-list URL.
+--- @field resolved_provider_url string|nil Exact URL fetched for this cached catalog revision.
+--- @field catalog_fetched_at string|nil Time the valid catalog was fetched.
+--- @field catalog_last_fetch_error string|nil Most recent refresh error while using cached data.
+--- @field installed_version string|number|nil Version recorded when the installed package was selected.
+--- @field selected boolean Whether deterministic selection prefers this candidate.
 
 --- @class Manga
 --- @field id string The ID of the manga.
@@ -660,7 +667,8 @@ end
 --- @return SuccessfulResponse<SourceInformation[]>|ErrorResponse
 function Backend.listAvailableSources()
   return Backend.requestJson({
-    path = "/available-sources",
+    path = "/source-catalogs/refresh",
+    method = "POST",
   })
 end
 
@@ -672,12 +680,14 @@ end
 --- which bundled languages are installed; when omitted, a multi-source APK
 --- answers `selection_required` instead of installing.
 --- @param source_id string
---- @param source_of_source string
+--- @param list_id string
+--- @param version string|number
 --- @param languages string[]|nil
 --- @return SuccessfulResponse<InstallOutcome>|ErrorResponse
-function Backend.installSource(source_id, source_of_source, languages)
+function Backend.installSource(source_id, list_id, version, languages)
   local body = {
-    source_of_source = source_of_source,
+    list_id = list_id,
+    version = version,
   }
   if languages ~= nil then
     body.languages = languages

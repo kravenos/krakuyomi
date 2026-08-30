@@ -363,13 +363,18 @@ impl Source {
 
     pub fn write_meta_file(
         path: &Path,
-        source_of_source: String,
+        provenance: impl Into<crate::source_catalog::SourceProvenance>,
         languages: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
+        let provenance = provenance.into();
         fs::write(
             BlockingSource::meta_source_path(path)?,
             serde_json::to_string(&SourceMeta {
-                source_of_source: Some(source_of_source),
+                source_of_source: provenance.source_of_source,
+                catalog_list_id: provenance.list_id,
+                provider_url: provenance.provider_url,
+                resolved_provider_url: provenance.resolved_provider_url,
+                installed_version: provenance.version,
                 is_next_sdk: None,
                 languages,
             })?,
@@ -542,10 +547,22 @@ pub struct SourceFeatures {
     pub process_page_image: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct SourceMeta {
     #[serde(rename = "from")]
     pub source_of_source: Option<String>,
+    /// Stable id of the exact catalog selected at install time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_list_id: Option<String>,
+    /// Exact normalized configured catalog URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_url: Option<Url>,
+    /// Exact resolved URL fetched for this catalog revision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_provider_url: Option<Url>,
+    /// Catalog version requested by the installer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_version: Option<serde_json::Value>,
     pub is_next_sdk: Option<bool>,
     /// The languages selected at install time for a multi-source keiyoushi
     /// APK; `None` (or missing) keeps every bundled source.
@@ -750,15 +767,16 @@ impl BlockingSource {
 
         if self.aidoku_sdk_next_from_meta != Some(sdk_next) {
             let meta_file = Self::meta_source_path(&self.path)?;
-            fs::write(
-                &meta_file,
-                serde_json::to_string(&SourceMeta {
+            let mut meta = fs::read_to_string(&meta_file)
+                .ok()
+                .and_then(|contents| serde_json::from_str::<SourceMeta>(&contents).ok())
+                .unwrap_or_else(|| SourceMeta {
                     source_of_source: self.manifest.source_of_source.clone(),
-                    is_next_sdk: Some(sdk_next),
-                    languages: None,
-                })?,
-            )
-            .with_context(|| format!("failed persisting SDK mode for {}", self.id))?;
+                    ..SourceMeta::default()
+                });
+            meta.is_next_sdk = Some(sdk_next);
+            fs::write(&meta_file, serde_json::to_string(&meta)?)
+                .with_context(|| format!("failed persisting SDK mode for {}", self.id))?;
         }
 
         self.store = Some(store);

@@ -47,6 +47,13 @@ pub struct SourceInformation {
     languages: Vec<String>,
     source_of_source: Option<String>,
     missing: bool,
+    list_id: Option<String>,
+    provider_url: Option<String>,
+    resolved_provider_url: Option<String>,
+    catalog_fetched_at: Option<String>,
+    catalog_last_fetch_error: Option<String>,
+    installed_version: Option<serde_json::Value>,
+    selected: bool,
 }
 
 impl From<DomainSourceInformation> for SourceInformation {
@@ -58,6 +65,33 @@ impl From<DomainSourceInformation> for SourceInformation {
             languages: value.languages,
             source_of_source: value.source_of_source,
             missing: value.missing,
+            list_id: value.catalog_list_id,
+            provider_url: value.provider_url.map(|url| url.to_string()),
+            resolved_provider_url: value.resolved_provider_url.map(|url| url.to_string()),
+            catalog_fetched_at: None,
+            catalog_last_fetch_error: None,
+            installed_version: value.installed_version,
+            selected: false,
+        }
+    }
+}
+
+impl From<shared::source_catalog::CatalogCandidate> for SourceInformation {
+    fn from(value: shared::source_catalog::CatalogCandidate) -> Self {
+        Self {
+            id: value.source.id.value().clone(),
+            name: value.source.name,
+            version: value.source.version,
+            languages: value.source.languages,
+            source_of_source: value.source.source_of_source,
+            missing: false,
+            list_id: Some(value.list_id),
+            provider_url: Some(value.provider_url.to_string()),
+            resolved_provider_url: Some(value.resolved_provider_url.to_string()),
+            catalog_fetched_at: Some(value.fetched_at.to_rfc3339()),
+            catalog_last_fetch_error: value.last_fetch_error,
+            installed_version: None,
+            selected: value.selected,
         }
     }
 }

@@ -385,7 +385,8 @@ function AvailableSourcesListing:makeItem(source_information, installed_info)
 
   if installed_info then
     -- Installed
-    if version_less(installed_info.version, source_information.version) then
+    local installed_version = installed_info.installed_version or installed_info.version
+    if version_less(installed_version, source_information.version) then
       mandatory = Icons.FA_ARROW_UP .. " " .. _("Update available!")
       callback = function() self:installSource(source_information) end
     else
@@ -398,9 +399,9 @@ function AvailableSourcesListing:makeItem(source_information, installed_info)
   end
 
   local languages_text = format_languages(source_information.languages)
-  local post_text = source_information.source_of_source
-      and string.sub(source_information.source_of_source, 1, 6) .. "..." or
-      _("Unknown")
+  -- Catalog candidates can share the same broad repository key. Show the
+  -- exact configured provider so duplicate candidates remain distinguishable.
+  local post_text = source_information.provider_url or source_information.source_of_source or _("Unknown")
   if languages_text then
     post_text = languages_text .. " · " .. post_text
   end
@@ -423,8 +424,10 @@ function AvailableSourcesListing:generateItemTableFromInstalledAndAvailableSourc
   --- Map installed by unique key (id@source)
   local installed_sources_by_key = {}
   for _, src in ipairs(installed_sources) do
-    local key = src.id .. "@" .. (src.source_of_source or "")
-    installed_sources_by_key[key] = src
+    if src.list_id then
+      installed_sources_by_key[src.id .. "@" .. src.list_id] = src
+    end
+    installed_sources_by_key[src.id .. "@" .. (src.source_of_source or "")] = src
   end
 
   local items_installed = {}
@@ -432,8 +435,10 @@ function AvailableSourcesListing:generateItemTableFromInstalledAndAvailableSourc
 
   --- Generate two lists: installed-first & available-after
   for _, source_information in ipairs(available_sources) do
-    local key = source_information.id .. "@" .. (source_information.source_of_source or "")
-    local installed_info = installed_sources_by_key[key]
+    local key = source_information.id .. "@" ..
+        (source_information.list_id or source_information.source_of_source or "")
+    local legacy_key = source_information.id .. "@" .. (source_information.source_of_source or "")
+    local installed_info = installed_sources_by_key[key] or installed_sources_by_key[legacy_key]
 
     local item = self:makeItem(source_information, installed_info)
 
@@ -482,7 +487,14 @@ function AvailableSourcesListing:installSourceWithLanguages(source_information, 
   Trapper:wrap(function()
     local response = LoadingDialog:showAndRun(
       _("Installing source..."),
-      function() return Backend.installSource(source_information.id, source_information.source_of_source, languages) end
+      function()
+        return Backend.installSource(
+          source_information.id,
+          source_information.list_id,
+          source_information.version,
+          languages
+        )
+      end
     )
 
     if response.type == 'ERROR' then

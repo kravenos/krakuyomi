@@ -116,13 +116,13 @@ impl SourceManager {
         &mut self,
         id: &SourceId,
         contents: impl AsRef<[u8]>,
-        source_of_source: String,
+        provenance: impl Into<crate::source_catalog::SourceProvenance>,
         arc_manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<()> {
         let target_path = self.source_path(id);
         fs::write(&target_path, contents)?;
 
-        Source::write_meta_file(&target_path, source_of_source, None)?;
+        Source::write_meta_file(&target_path, provenance, None)?;
 
         let source = Source::from_aix_file(&target_path, self, arc_manager)?;
         self.sources_by_id.insert(id.clone(), source);
@@ -140,13 +140,13 @@ impl SourceManager {
         &mut self,
         id: &SourceId,
         contents: impl AsRef<[u8]>,
-        source_of_source: String,
+        provenance: impl Into<crate::source_catalog::SourceProvenance>,
         arc_manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<()> {
         let target_path = self.lnreader_source_path(id);
         fs::write(&target_path, contents)?;
 
-        Source::write_meta_file(&target_path, source_of_source, None)?;
+        Source::write_meta_file(&target_path, provenance, None)?;
 
         let source = Source::from_lnreader_file(&target_path, self, arc_manager)?;
         // Installing is an explicit user action with the network up, so the
@@ -187,7 +187,7 @@ impl SourceManager {
         id: &SourceId,
         code: impl AsRef<[u8]>,
         metadata: impl AsRef<[u8]>,
-        source_of_source: String,
+        provenance: impl Into<crate::source_catalog::SourceProvenance>,
         arc_manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<()> {
         let metadata: serde_json::Value =
@@ -227,7 +227,7 @@ impl SourceManager {
         fs::write(&target_path, code)?;
         fs::write(target_path.with_extension("json"), metadata.to_string())?;
 
-        Source::write_meta_file(&target_path, source_of_source, None)?;
+        Source::write_meta_file(&target_path, provenance, None)?;
 
         let source = Source::from_mangayomi_file(&target_path, self, arc_manager)?;
         // See `install_lnreader_source`: the probe runs eagerly so the probe
@@ -267,7 +267,7 @@ impl SourceManager {
         &mut self,
         id: &SourceId,
         contents: impl AsRef<[u8]>,
-        source_of_source: String,
+        provenance: impl Into<crate::source_catalog::SourceProvenance>,
         arc_manager: &Arc<Mutex<SourceManager>>,
         languages: Option<&[String]>,
     ) -> Result<()> {
@@ -278,11 +278,7 @@ impl SourceManager {
         let target_path = self.keiyoushi_source_path(id);
         fs::write(&target_path, contents)?;
 
-        Source::write_meta_file(
-            &target_path,
-            source_of_source,
-            languages.map(|l| l.to_vec()),
-        )?;
+        Source::write_meta_file(&target_path, provenance, languages.map(|l| l.to_vec()))?;
 
         // The selection in the meta file replaces any previous one, so drop
         // the sources previously registered from this APK first; otherwise
@@ -479,6 +475,25 @@ impl SourceManager {
                 self.keiyoushi_source_path(id),
             ])
             .find(|path| path.exists())
+    }
+
+    /// Reads the exact catalog provenance stored beside an installed source.
+    /// Older packages only contain the legacy `from` field and remain valid.
+    pub fn source_provenance(
+        &self,
+        id: &SourceId,
+    ) -> Option<crate::source_catalog::SourceProvenance> {
+        let path = self.source_file_for_id(id)?;
+        let meta_path = crate::source::BlockingSource::meta_source_path(&path).ok()?;
+        let meta: crate::source::SourceMeta =
+            serde_json::from_str(&fs::read_to_string(meta_path).ok()?).ok()?;
+        Some(crate::source_catalog::SourceProvenance {
+            source_of_source: meta.source_of_source,
+            list_id: meta.catalog_list_id,
+            provider_url: meta.provider_url,
+            resolved_provider_url: meta.resolved_provider_url,
+            version: meta.installed_version,
+        })
     }
 
     /// Drop every source registered from `path`, then re-register them from

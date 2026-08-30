@@ -1,21 +1,18 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 use tokio::sync::Mutex;
 
 use anyhow::{anyhow, Context, Result};
-use futures::{stream, StreamExt, TryStreamExt};
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
     model::{InstallOutcome, SourceId},
     settings::SourceList,
+    source_catalog::CatalogStore,
     source_manager::SourceManager,
-    usecases::fetch_source_list::fetch_source_list,
-    usecases::resolve_source_list::{resolve_source_list, source_list_key},
 };
 
-/// Installs the source identified by `source_id` from the source list
-/// named by `source_of_source`.
+/// Installs one exact source version from the validated catalog cache.
 ///
 /// For keiyoushi extensions, `languages` restricts which bundled sources
 /// of a multi-source APK get registered. Passing `None` for a multi-source
@@ -26,92 +23,52 @@ use crate::{
 pub async fn install_source(
     arc_manager: &Arc<Mutex<SourceManager>>,
     source_lists: &[SourceList],
+    catalog_cache_path: &Path,
     source_id: SourceId,
-    source_of_source: String,
+    list_id: String,
+    version: Value,
     languages: Option<Vec<String>>,
 ) -> Result<InstallOutcome> {
-    let (source_list, source_list_item, source_of_source) = stream::iter(
-        source_lists
-            .iter()
-            .filter(|list| source_list_key(list) == source_of_source),
-    )
-    .then(|source_list| async move {
-        let resolved_list = resolve_source_list(source_list).await;
-        let key = source_list_key(source_list);
-
-        let client = crate::tls::client_builder()
-            .build()
-            .with_context(|| "failed to create HTTP client".to_string())?;
-        let value = fetch_source_list(&client, &resolved_list).await?;
-
-        // Try both formats
-        let mut source_list_items = if value.is_array() {
-            serde_json::from_value::<Vec<SourceListItem>>(value)?
-        } else if let Some(arr) = value.get("sources").and_then(|v| v.as_array()) {
-            serde_json::from_value::<Vec<SourceListItem>>(Value::Array(arr.clone()))?
-        } else {
-            anyhow::bail!(
-                "unexpected JSON format for source list at {}: {}",
-                resolved_list,
-                value
-            );
-        };
-
-        // Match the id expansion `list_available_sources` applies: entries
-        // of a keiyoushi package published with several languages are named
-        // `<pkg>:<lang>`.
-        if source_list.source_type == crate::settings::SourceListType::Keiyoushi {
-            let mut entries = source_list_items
-                .iter()
-                .map(|item| {
-                    (
-                        item.id.value().to_string(),
-                        item.item
-                            .get("lang")
-                            .and_then(|lang| lang.as_str())
-                            .map(String::from),
-                    )
-                })
-                .collect::<Vec<_>>();
-            crate::usecases::fetch_source_list::expand_keiyoushi_ids(&mut entries);
-            for (item, (id, _)) in source_list_items.iter_mut().zip(entries) {
-                item.id = SourceId::new(id);
-            }
-        }
-
-        anyhow::Ok((source_list, source_list_items, key))
-    })
-    .try_collect::<Vec<_>>()
-    .await?
-    .into_iter()
-    .flat_map(|(source_list, items, key)| {
-        items
-            .into_iter()
-            .map(|item| (source_list.clone(), item, key.clone()))
-            .collect::<Vec<_>>()
-    })
-    .find(|(_, item, _)| item.id == source_id)
-    .ok_or_else(|| anyhow!("couldn't find source with id '{:?}'", source_id))?;
+    let candidate = CatalogStore::new(catalog_cache_path.to_path_buf()).find(
+        source_lists,
+        &list_id,
+        &source_id,
+        &version,
+    )?;
+    let source_type = candidate.source_type;
+    let resolved_provider_url = candidate.resolved_provider_url.clone();
+    let provenance = candidate.provenance();
+    let mut raw = candidate.raw;
+    if let Value::Object(object) = &mut raw {
+        object.insert(
+            "id".to_string(),
+            Value::String(candidate.source.id.value().clone()),
+        );
+        object.remove("pkg");
+    }
+    let source_list_item: SourceListItem =
+        serde_json::from_value(raw).context("cached source entry is invalid")?;
 
     let client = crate::tls::client_builder().build()?;
 
-    match source_list.source_type {
+    match source_type {
         crate::settings::SourceListType::LnReader => {
             // LNReader plugin: the index publishes an absolute URL to the
             // compiled `.js` file.
             let url = source_list_item
                 .url
                 .context("LNReader source list item is missing a `url`")?;
-            let plugin_content = client.get(url).send().await?.bytes().await?;
+            let plugin_content = client
+                .get(url)
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await?;
             let manager = arc_manager.clone();
             tokio::task::spawn_blocking(move || {
                 let mut guard = manager.blocking_lock();
-                guard.install_lnreader_source(
-                    &source_id,
-                    plugin_content,
-                    source_of_source,
-                    &manager,
-                )
+                guard.install_lnreader_source(&source_id, plugin_content, provenance, &manager)
             })
             .await
             .map_err(|e| anyhow!("LNReader install task panicked: {e}"))??;
@@ -125,7 +82,13 @@ pub async fn install_source(
             let code_url = source_list_item
                 .source_code_url
                 .context("MangaYomi source list item is missing a `sourceCodeUrl`")?;
-            let code = client.get(code_url).send().await?.bytes().await?;
+            let code = client
+                .get(code_url)
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await?;
             // `#[serde(flatten)]` consumes the `id` key into its own field, so
             // it is missing from `item`; put it back so the stored metadata
             // (and `ExtensionMeta::from_value`) sees it.
@@ -139,13 +102,7 @@ pub async fn install_source(
             let manager = arc_manager.clone();
             tokio::task::spawn_blocking(move || {
                 let mut guard = manager.blocking_lock();
-                guard.install_mangayomi_source(
-                    &source_id,
-                    code,
-                    metadata,
-                    source_of_source,
-                    &manager,
-                )
+                guard.install_mangayomi_source(&source_id, code, metadata, provenance, &manager)
             })
             .await
             .map_err(|e| anyhow!("MangaYomi install task panicked: {e}"))??;
@@ -157,7 +114,13 @@ pub async fn install_source(
             let apk_url = source_list_item
                 .file
                 .context("Keiyoushi source list item is missing an `apk` URL")?;
-            let apk_content = client.get(apk_url).send().await?.bytes().await?;
+            let apk_content = client
+                .get(apk_url)
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await?;
 
             // Probing boots the extension VM and installing registers its
             // sources: both are blocking work, so run them off the async
@@ -172,7 +135,7 @@ pub async fn install_source(
                     guard.install_keiyoushi_source(
                         &source_id,
                         apk_content,
-                        source_of_source,
+                        provenance.clone(),
                         &manager,
                         None,
                     )?;
@@ -222,7 +185,7 @@ pub async fn install_source(
                 guard.install_keiyoushi_source(
                     &source_id,
                     apk_content,
-                    source_of_source,
+                    provenance,
                     &manager,
                     Some(&languages),
                 )?;
@@ -238,15 +201,22 @@ pub async fn install_source(
                 .file
                 .context("source list item is missing a `file`")?;
             let aix_url = if file.starts_with("sources/") {
-                source_list.url.join(&file).unwrap()
+                resolved_provider_url.join(&file)
             } else {
-                source_list.url.join(&format!("sources/{}", file)).unwrap()
-            };
-            let aix_content = client.get(aix_url).send().await?.bytes().await?;
+                resolved_provider_url.join(&format!("sources/{}", file))
+            }
+            .context("source catalog contains an invalid Aidoku package URL")?;
+            let aix_content = client
+                .get(aix_url)
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await?;
             let manager = arc_manager.clone();
             tokio::task::spawn_blocking(move || {
                 let mut guard = manager.blocking_lock();
-                guard.install_source(&source_id, aix_content, source_of_source, &manager)
+                guard.install_source(&source_id, aix_content, provenance, &manager)
             })
             .await
             .map_err(|e| anyhow!("Aidoku install task panicked: {e}"))??;

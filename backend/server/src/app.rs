@@ -203,6 +203,7 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
     let database_path = home_path.join("database.db");
     let default_downloads_folder_path = home_path.join("downloads");
     let settings_path = home_path.join("settings.json");
+    let catalog_cache_path = home_path.join("source_catalogs");
 
     let database = Database::new(&database_path)
         .await
@@ -264,6 +265,7 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
         chapter_storage: Arc::new(Mutex::new(chapter_storage)),
         settings: Arc::new(Mutex::new(settings)),
         settings_path,
+        catalog_cache_path,
         job_state: Default::default(),
         cancel_token_store: Arc::new(Mutex::new(HashMap::new())),
         download_semaphore: Arc::new(Semaphore::new(3)),
