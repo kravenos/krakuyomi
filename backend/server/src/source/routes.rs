@@ -24,6 +24,7 @@ pub fn routes() -> Router<State> {
             post(install_source),
         )
         .route("/installed-sources", get(list_installed_sources))
+        .route("/sources/status", get(list_source_statuses))
         .route("/installed-sources/{source_id}", delete(uninstall_source))
         .route(
             "/installed-sources/{source_id}/setting-definitions",
@@ -101,6 +102,48 @@ async fn list_installed_sources(
         .collect();
 
     Json(installed_sources)
+}
+
+#[derive(serde::Serialize)]
+struct SourcePackageStatusResponse {
+    source_ids: Vec<String>,
+    package_label: String,
+    package_kind: &'static str,
+    presence: &'static str,
+    load: &'static str,
+    catalog: &'static str,
+    freshness: &'static str,
+    runtime: &'static str,
+    compatibility: &'static str,
+    error: Option<String>,
+}
+
+async fn list_source_statuses(
+    StateExtractor(State { source_manager, .. }): StateExtractor<State>,
+) -> Json<Vec<SourcePackageStatusResponse>> {
+    let source_manager = source_manager.lock().await;
+    Json(
+        source_manager
+            .source_packages
+            .iter()
+            .map(|status| SourcePackageStatusResponse {
+                source_ids: status
+                    .source_ids
+                    .iter()
+                    .map(|id| id.value().clone())
+                    .collect(),
+                package_label: status.package_label.clone(),
+                package_kind: status.kind.as_str(),
+                presence: "installed",
+                load: status.load.as_str(),
+                catalog: "unknown",
+                freshness: "unknown",
+                runtime: "unknown",
+                compatibility: "unknown",
+                error: status.error.clone(),
+            })
+            .collect(),
+    )
 }
 
 async fn uninstall_source(

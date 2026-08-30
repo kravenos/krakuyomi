@@ -15,13 +15,74 @@ use crate::{
     source_collection::SourceCollection,
 };
 
+/// A supported source package format found in the local sources directory.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourcePackageKind {
+    /// Aidoku WASM archive (`.aix`).
+    Aidoku,
+    /// Mihon/Keiyoushi extension archive (`.keiyoushi.apk`).
+    Keiyoushi,
+    /// LNReader JavaScript plugin (`.lnreader.js`).
+    LnReader,
+    /// MangaYomi Dart or JavaScript extension.
+    MangaYomi,
+}
+
+impl SourcePackageKind {
+    /// Returns the stable API name for this package kind.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Aidoku => "aidoku",
+            Self::Keiyoushi => "keiyoushi",
+            Self::LnReader => "lnreader",
+            Self::MangaYomi => "mangayomi",
+        }
+    }
+}
+
+/// The result of attempting to load one local source package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourcePackageLoadState {
+    /// The package loaded and registered at least one source.
+    Loaded,
+    /// The package could not be loaded or conflicted with an earlier package.
+    LoadFailed,
+}
+
+impl SourcePackageLoadState {
+    /// Returns the stable API name for this load state.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Loaded => "loaded",
+            Self::LoadFailed => "load_failed",
+        }
+    }
+}
+
+/// A path-safe summary of one supported package discovered during source loading.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourcePackageStatus {
+    /// File name only; never the full local filesystem path.
+    pub package_label: String,
+    /// Package format detected from the file name.
+    pub kind: SourcePackageKind,
+    /// Source ids registered by the package, or a best-effort filename hint.
+    pub source_ids: Vec<SourceId>,
+    /// Whether the package loaded successfully.
+    pub load: SourcePackageLoadState,
+    /// Sanitized user-facing failure summary, when loading failed.
+    pub error: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct SourceManager {
     sources_folder: PathBuf,
     pub sources_by_id: HashMap<SourceId, Source>,
     pub settings: Settings,
-    #[cfg(not(feature = "all"))]
+    /// Maps every loaded source id to its backing package path.
     pub file_sources: HashMap<String, String>,
+    /// Stable, path-safe result for every supported package in the last scan.
+    pub source_packages: Vec<SourcePackageStatus>,
 }
 
 impl SourceManager {
@@ -34,8 +95,8 @@ impl SourceManager {
             sources_folder,
             sources_by_id,
             settings,
-            #[cfg(not(feature = "all"))]
             file_sources: HashMap::new(),
+            source_packages: Vec::new(),
         }
     }
 
@@ -46,8 +107,8 @@ impl SourceManager {
             sources_folder: path,
             sources_by_id: HashMap::new(),
             settings,
-            #[cfg(not(feature = "all"))]
             file_sources: HashMap::new(),
+            source_packages: Vec::new(),
         })
     }
 
@@ -65,11 +126,11 @@ impl SourceManager {
 
         let source = Source::from_aix_file(&target_path, self, arc_manager)?;
         self.sources_by_id.insert(id.clone(), source);
-        #[cfg(not(feature = "all"))]
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
+        self.record_loaded_package(&target_path, vec![id.clone()]);
 
         Ok(())
     }
@@ -107,11 +168,11 @@ impl SourceManager {
             return Err(e);
         }
         self.sources_by_id.insert(id.clone(), source);
-        #[cfg(not(feature = "all"))]
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
+        self.record_loaded_package(&target_path, vec![id.clone()]);
 
         Ok(())
     }
@@ -187,11 +248,11 @@ impl SourceManager {
             return Err(e);
         }
         self.sources_by_id.insert(id.clone(), source);
-        #[cfg(not(feature = "all"))]
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
+        self.record_loaded_package(&target_path, vec![id.clone()]);
 
         Ok(())
     }
@@ -238,20 +299,21 @@ impl SourceManager {
             .collect();
         for doomed_id in doomed {
             self.sources_by_id.remove(&doomed_id);
-            #[cfg(not(feature = "all"))]
             self.file_sources.remove(doomed_id.value());
         }
 
         let sources = Source::from_keiyoushi_file(&target_path, self, arc_manager)?;
+        let mut registered_ids = Vec::new();
         for source in sources {
             let source_id = SourceId::new(source.manifest().info.id.clone());
-            #[cfg(not(feature = "all"))]
             self.file_sources.insert(
                 source_id.value().to_owned(),
                 target_path.to_string_lossy().to_string(),
             );
+            registered_ids.push(source_id.clone());
             self.sources_by_id.insert(source_id, source);
         }
+        self.record_loaded_package(&target_path, registered_ids);
 
         Ok(())
     }
@@ -261,8 +323,8 @@ impl SourceManager {
         fs::remove_file(&source_path)?;
 
         self.sources_by_id.remove(&id.clone());
-        #[cfg(not(feature = "all"))]
         self.file_sources.remove(id.value());
+        self.remove_package_statuses_for_paths(std::slice::from_ref(&source_path));
 
         Ok(())
     }
@@ -318,9 +380,9 @@ impl SourceManager {
             .collect();
         for d in doomed {
             self.sources_by_id.remove(&d);
-            #[cfg(not(feature = "all"))]
             self.file_sources.remove(d.value());
         }
+        self.remove_package_statuses_for_paths(&removed);
         Ok(())
     }
 
@@ -372,7 +434,6 @@ impl SourceManager {
 
     /// The on-disk file a registered source was loaded from, if any.
     fn source_file_for_id(&self, id: &SourceId) -> Option<PathBuf> {
-        #[cfg(not(feature = "all"))]
         if let Some(path) = self.file_sources.get(id.value()) {
             return Some(PathBuf::from(path));
         }
@@ -410,7 +471,6 @@ impl SourceManager {
             .collect();
         for id in &doomed {
             self.sources_by_id.remove(id);
-            #[cfg(not(feature = "all"))]
             self.file_sources.remove(id.value());
         }
 
@@ -426,23 +486,41 @@ impl SourceManager {
                 || name.ends_with(crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX)
         });
 
-        let sources = if is_keiyoushi {
-            Source::from_keiyoushi_file(path, self, manager)?
+        let load_result = if is_keiyoushi {
+            Source::from_keiyoushi_file(path, self, manager)
         } else if is_lnreader {
-            vec![Source::from_lnreader_file(path, self, manager)?]
+            Source::from_lnreader_file(path, self, manager).map(|source| vec![source])
         } else if is_mangayomi {
-            vec![Source::from_mangayomi_file(path, self, manager)?]
+            Source::from_mangayomi_file(path, self, manager).map(|source| vec![source])
         } else {
-            vec![Source::from_aix_file(path, self, manager)?]
+            Source::from_aix_file(path, self, manager).map(|source| vec![source])
+        };
+        let sources = match load_result {
+            Ok(sources) => sources,
+            Err(error) => {
+                log::warn!(
+                    "couldn't reload source package {}: {error:#}",
+                    path.display()
+                );
+                self.record_failed_package(path, doomed);
+                return Err(error);
+            }
         };
 
         for source in sources {
             let id = source.manifest().info.id.clone();
-            #[cfg(not(feature = "all"))]
             self.file_sources
                 .insert(id.clone(), path.to_string_lossy().to_string());
             self.sources_by_id.insert(SourceId::new(id.clone()), source);
         }
+
+        let source_ids = self
+            .sources_by_id
+            .keys()
+            .filter(|id| self.source_file_for_id(id).as_deref() == Some(path))
+            .cloned()
+            .collect();
+        self.record_loaded_package(path, source_ids);
 
         Ok(())
     }
@@ -466,71 +544,188 @@ impl SourceManager {
         &mut self,
         manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<HashMap<SourceId, Source>> {
-        let files = fs::read_dir(&self.sources_folder).with_context(|| {
+        let entries = fs::read_dir(&self.sources_folder).with_context(|| {
             format!(
                 "while attempting to read source collection at {}",
                 self.sources_folder.display()
             )
         })?;
 
-        #[cfg(not(feature = "all"))]
-        self.file_sources.clear();
+        let mut package_paths = Vec::new();
+        for entry in entries {
+            match entry {
+                Ok(entry) if source_package_kind(&entry.path()).is_some() => {
+                    package_paths.push(entry.path());
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    log::warn!("couldn't inspect an entry in the sources folder: {error}");
+                }
+            }
+        }
+        package_paths.sort_by_key(|path| {
+            let label = source_package_label(path);
+            (label.to_ascii_lowercase(), label)
+        });
 
         let mut sources_by_id = HashMap::new();
-        for entry in files.flatten() {
-            let path = entry.path();
-            let is_lnreader = path
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("js"))
-                && path.file_name().is_some_and(|name| {
-                    name.to_string_lossy()
-                        .ends_with(crate::source::lnreader::LNREADER_FILE_SUFFIX)
-                });
-            let is_mangayomi = path.file_name().is_some_and(|name| {
-                let ext = name.to_string_lossy();
-                ext.ends_with(crate::source::mangayomi::MANGA_YOMI_FILE_SUFFIX)
-                    || ext.ends_with(crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX)
-            });
-            let is_keiyoushi = path.file_name().is_some_and(|name| {
-                name.to_string_lossy()
-                    .ends_with(crate::source::keiyoushi::KEIYOUSHI_FILE_SUFFIX)
-            });
-
-            let source = if is_keiyoushi {
-                // A keiyoushi APK registers one source per bundled `Source`;
-                // every one of them maps back to this file on disk.
-                for source in Source::from_keiyoushi_file(&path, self, manager)? {
-                    #[cfg(not(feature = "all"))]
-                    self.file_sources.insert(
-                        source.manifest().info.id.clone(),
-                        path.as_path().to_string_lossy().to_string(),
-                    );
-                    sources_by_id.insert(SourceId::new(source.manifest().info.id.clone()), source);
-                }
-                continue;
-            } else if is_lnreader {
-                Source::from_lnreader_file(&path, self, manager)?
-            } else if is_mangayomi {
-                Source::from_mangayomi_file(&path, self, manager)?
-            } else {
-                if !path
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("aix"))
-                {
+        let mut file_sources = HashMap::new();
+        let mut source_packages = Vec::new();
+        for path in package_paths {
+            let kind = source_package_kind(&path).expect("supported package path");
+            let package_label = source_package_label(&path);
+            let sources = match self.load_source_package(&path, kind, manager) {
+                Ok(sources) => sources,
+                Err(error) => {
+                    log::warn!("couldn't load source package {}: {error:#}", path.display());
+                    source_packages.push(SourcePackageStatus {
+                        package_label,
+                        kind,
+                        source_ids: source_id_hint(&path, kind).into_iter().collect(),
+                        load: SourcePackageLoadState::LoadFailed,
+                        error: Some("The source package is invalid or incompatible.".to_owned()),
+                    });
                     continue;
                 }
-                Source::from_aix_file(&path, self, manager)?
             };
-            #[cfg(not(feature = "all"))]
-            self.file_sources.insert(
-                source.manifest().info.id.clone(),
-                path.as_path().to_string_lossy().to_string(),
-            );
 
-            sources_by_id.insert(SourceId::new(source.manifest().info.id.clone()), source);
+            let source_ids = sources
+                .iter()
+                .map(|source| SourceId::new(source.manifest().info.id.clone()))
+                .collect::<Vec<_>>();
+            if source_ids.is_empty() {
+                source_packages.push(SourcePackageStatus {
+                    package_label,
+                    kind,
+                    source_ids: source_id_hint(&path, kind).into_iter().collect(),
+                    load: SourcePackageLoadState::LoadFailed,
+                    error: Some("The source package did not provide any sources.".to_owned()),
+                });
+                continue;
+            }
+
+            let mut ids_in_package = BTreeSet::new();
+            let duplicate_id = source_ids
+                .iter()
+                .find(|id| {
+                    !ids_in_package.insert(id.value().clone()) || sources_by_id.contains_key(*id)
+                })
+                .map(|id| id.value().clone());
+            if let Some(duplicate_id) = duplicate_id {
+                log::warn!(
+                    "rejected source package {} because source id '{}' was already loaded",
+                    path.display(),
+                    duplicate_id
+                );
+                source_packages.push(SourcePackageStatus {
+                    package_label,
+                    kind,
+                    source_ids,
+                    load: SourcePackageLoadState::LoadFailed,
+                    error: Some(format!(
+                        "Source id '{}' conflicts with an earlier package.",
+                        duplicate_id
+                    )),
+                });
+                continue;
+            }
+
+            for (source_id, source) in source_ids.iter().cloned().zip(sources) {
+                file_sources.insert(
+                    source_id.value().clone(),
+                    path.to_string_lossy().to_string(),
+                );
+                sources_by_id.insert(source_id, source);
+            }
+            source_packages.push(SourcePackageStatus {
+                package_label,
+                kind,
+                source_ids,
+                load: SourcePackageLoadState::Loaded,
+                error: None,
+            });
         }
 
+        self.file_sources = file_sources;
+        self.source_packages = source_packages;
+
         Ok(sources_by_id)
+    }
+
+    fn load_source_package(
+        &self,
+        path: &Path,
+        kind: SourcePackageKind,
+        manager: &Arc<Mutex<SourceManager>>,
+    ) -> Result<Vec<Source>> {
+        match kind {
+            SourcePackageKind::Aidoku => Ok(vec![Source::from_aix_file(path, self, manager)?]),
+            SourcePackageKind::Keiyoushi => Source::from_keiyoushi_file(path, self, manager),
+            SourcePackageKind::LnReader => {
+                Ok(vec![Source::from_lnreader_file(path, self, manager)?])
+            }
+            SourcePackageKind::MangaYomi => {
+                Ok(vec![Source::from_mangayomi_file(path, self, manager)?])
+            }
+        }
+    }
+
+    fn record_loaded_package(&mut self, path: &Path, source_ids: Vec<SourceId>) {
+        let Some(kind) = source_package_kind(path) else {
+            return;
+        };
+        let package_label = source_package_label(path);
+        self.source_packages
+            .retain(|status| status.package_label != package_label);
+        self.source_packages.push(SourcePackageStatus {
+            package_label,
+            kind,
+            source_ids,
+            load: SourcePackageLoadState::Loaded,
+            error: None,
+        });
+        self.sort_package_statuses();
+    }
+
+    fn record_failed_package(&mut self, path: &Path, mut source_ids: Vec<SourceId>) {
+        let Some(kind) = source_package_kind(path) else {
+            return;
+        };
+        if source_ids.is_empty() {
+            source_ids.extend(source_id_hint(path, kind));
+        }
+        let package_label = source_package_label(path);
+        self.source_packages
+            .retain(|status| status.package_label != package_label);
+        self.source_packages.push(SourcePackageStatus {
+            package_label,
+            kind,
+            source_ids,
+            load: SourcePackageLoadState::LoadFailed,
+            error: Some("The source package is invalid or incompatible.".to_owned()),
+        });
+        self.sort_package_statuses();
+    }
+
+    fn sort_package_statuses(&mut self) {
+        self.source_packages.sort_by_key(|status| {
+            (
+                status.package_label.to_ascii_lowercase(),
+                status.package_label.clone(),
+            )
+        });
+    }
+
+    fn remove_package_statuses_for_paths<'a>(
+        &mut self,
+        paths: impl IntoIterator<Item = &'a PathBuf>,
+    ) {
+        let labels = paths
+            .into_iter()
+            .map(|path| source_package_label(path))
+            .collect::<BTreeSet<_>>();
+        self.source_packages
+            .retain(|status| !labels.contains(&status.package_label));
     }
 
     pub fn source_path(&self, id: &SourceId) -> PathBuf {
@@ -601,6 +796,50 @@ impl SourceManager {
     }
 }
 
+fn source_package_kind(path: &Path) -> Option<SourcePackageKind> {
+    let label = path.file_name()?.to_string_lossy().to_ascii_lowercase();
+    if label.ends_with(crate::source::keiyoushi::KEIYOUSHI_FILE_SUFFIX) {
+        Some(SourcePackageKind::Keiyoushi)
+    } else if label.ends_with(crate::source::lnreader::LNREADER_FILE_SUFFIX) {
+        Some(SourcePackageKind::LnReader)
+    } else if label.ends_with(crate::source::mangayomi::MANGA_YOMI_FILE_SUFFIX)
+        || label.ends_with(crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX)
+    {
+        Some(SourcePackageKind::MangaYomi)
+    } else if path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("aix"))
+    {
+        Some(SourcePackageKind::Aidoku)
+    } else {
+        None
+    }
+}
+
+fn source_package_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unknown source package".to_owned())
+}
+
+fn source_id_hint(path: &Path, kind: SourcePackageKind) -> Option<SourceId> {
+    let label = path.file_name()?.to_string_lossy();
+    let id = match kind {
+        SourcePackageKind::Aidoku => path.file_stem()?.to_string_lossy().to_string(),
+        SourcePackageKind::Keiyoushi => label
+            .strip_suffix(crate::source::keiyoushi::KEIYOUSHI_FILE_SUFFIX)?
+            .to_owned(),
+        SourcePackageKind::LnReader => label
+            .strip_suffix(crate::source::lnreader::LNREADER_FILE_SUFFIX)?
+            .to_owned(),
+        SourcePackageKind::MangaYomi => label
+            .strip_suffix(crate::source::mangayomi::MANGA_YOMI_FILE_SUFFIX)
+            .or_else(|| label.strip_suffix(crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX))?
+            .to_owned(),
+    };
+    Some(SourceId::new(id))
+}
+
 impl SourceCollection for SourceManager {
     fn get_by_id(&self, id: &SourceId) -> Option<&Source> {
         self.sources_by_id.get(id)
@@ -608,5 +847,132 @@ impl SourceCollection for SourceManager {
 
     fn sources(&self) -> Vec<&Source> {
         self.sources_by_id.values().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use tempfile::tempdir;
+    use zip::{write::FileOptions, ZipWriter};
+
+    use super::*;
+
+    fn write_test_aix(path: &Path, source_id: &str, name: &str) {
+        let file = fs::File::create(path).expect("create test source archive");
+        let mut archive = ZipWriter::new(file);
+        let options: FileOptions<'_, ()> = FileOptions::default();
+        archive
+            .start_file("Payload/source.json", options)
+            .expect("start source manifest");
+        write!(
+            archive,
+            r#"{{"info":{{"id":"{source_id}","name":"{name}","version":1}}}}"#
+        )
+        .expect("write source manifest");
+        archive.finish().expect("finish test source archive");
+    }
+
+    #[test]
+    fn corrupt_package_does_not_hide_later_valid_package() {
+        let directory = tempdir().expect("create sources directory");
+        fs::write(directory.path().join("00-broken.aix"), b"not a zip")
+            .expect("write corrupt source");
+        write_test_aix(
+            &directory.path().join("10-valid.aix"),
+            "valid.source",
+            "Valid Source",
+        );
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+
+        let mut guard = manager.blocking_lock();
+        let sources = guard
+            .load_all_sources(&manager)
+            .expect("scan should survive one corrupt package");
+
+        assert!(sources.contains_key(&SourceId::new("valid.source".to_owned())));
+        assert_eq!(guard.source_packages.len(), 2);
+        assert_eq!(
+            guard.source_packages[0].load,
+            SourcePackageLoadState::LoadFailed
+        );
+        assert_eq!(guard.source_packages[0].package_label, "00-broken.aix");
+        assert_eq!(
+            guard.source_packages[1].load,
+            SourcePackageLoadState::Loaded
+        );
+    }
+
+    #[test]
+    fn stable_package_order_rejects_later_duplicate_source_id() {
+        let directory = tempdir().expect("create sources directory");
+        write_test_aix(
+            &directory.path().join("b-second.aix"),
+            "duplicate.source",
+            "Second",
+        );
+        write_test_aix(
+            &directory.path().join("a-first.aix"),
+            "duplicate.source",
+            "First",
+        );
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+
+        let mut guard = manager.blocking_lock();
+        let sources = guard.load_all_sources(&manager).expect("scan sources");
+        let source = sources
+            .get(&SourceId::new("duplicate.source".to_owned()))
+            .expect("first source should win");
+
+        assert_eq!(source.manifest().info.name, "First");
+        assert_eq!(guard.source_packages[0].package_label, "a-first.aix");
+        assert_eq!(
+            guard.source_packages[0].load,
+            SourcePackageLoadState::Loaded
+        );
+        assert_eq!(guard.source_packages[1].package_label, "b-second.aix");
+        assert_eq!(
+            guard.source_packages[1].load,
+            SourcePackageLoadState::LoadFailed
+        );
+    }
+
+    #[test]
+    fn failed_reload_replaces_loaded_status_with_failure() {
+        let directory = tempdir().expect("create sources directory");
+        let package_path = directory.path().join("source.aix");
+        write_test_aix(&package_path, "reload.source", "Reload Source");
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+
+        let mut guard = manager.blocking_lock();
+        let sources = guard.load_all_sources(&manager).expect("load source");
+        guard.sources_by_id = sources;
+        fs::write(&package_path, b"not a zip").expect("corrupt source package");
+
+        let result = guard.reload_source_file(&package_path, &manager);
+
+        assert!(result.is_err());
+        assert!(!guard
+            .sources_by_id
+            .contains_key(&SourceId::new("reload.source".to_owned())));
+        assert_eq!(guard.source_packages.len(), 1);
+        assert_eq!(
+            guard.source_packages[0].load,
+            SourcePackageLoadState::LoadFailed
+        );
+        assert_eq!(
+            guard.source_packages[0].source_ids,
+            vec![SourceId::new("reload.source".to_owned())]
+        );
     }
 }
