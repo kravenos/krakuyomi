@@ -101,6 +101,8 @@ impl DownloadScanlatorChaptersJob {
                     ProgressReport::Errored(error) => {
                         *output_clone.lock().await = Some(Err(ErrorResponse {
                             message: error.to_string(),
+                            code: None,
+                            retryable: false,
                         }));
                         break;
                     }

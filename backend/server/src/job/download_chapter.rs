@@ -109,6 +109,21 @@ impl DownloadChapterJob {
         current_chapter_id: Option<ChapterId>,
         chapter_title_format: ChapterTitleFormat,
     ) -> Result<(PathBuf, Vec<DownloadError>, bool), ErrorResponse> {
+        if use_ram {
+            if let Some((path, errors)) = chapter_storage
+                .get_stored_chapter_and_errors(&chapter_id, true)
+                .map_err(AppError::from)?
+            {
+                return Ok((path, errors.unwrap_or_default(), true));
+            }
+        }
+        if let Some((path, errors)) = chapter_storage
+            .get_stored_chapter_and_errors(&chapter_id, false)
+            .map_err(AppError::from)?
+        {
+            return Ok((path, errors.unwrap_or_default(), false));
+        }
+
         let source = {
             let mgr = source_manager.lock().await;
             mgr.get_by_id(chapter_id.source_id())
@@ -122,18 +137,26 @@ impl DownloadChapterJob {
                 .await
                 .map_err(|e| ErrorResponse {
                     message: format!("Failed to fetch manga: {e}"),
+                    code: None,
+                    retryable: false,
                 })?
                 .ok_or_else(|| ErrorResponse {
                     message: "Manga not found in database".into(),
+                    code: None,
+                    retryable: false,
                 })?;
             let chapter = db
                 .find_cached_chapter_information(&chapter_id)
                 .await
                 .map_err(|e| ErrorResponse {
                     message: format!("Failed to fetch chapter: {e}"),
+                    code: None,
+                    retryable: false,
                 })?
                 .ok_or_else(|| ErrorResponse {
                     message: "Chapter not found in database".into(),
+                    code: None,
+                    retryable: false,
                 })?;
             (manga, chapter)
         };
@@ -220,6 +243,8 @@ impl Job for DownloadChapterJob {
 
         let _ = self.tx.send(Some(Err(ErrorResponse {
             message: "Download was canceled by user".into(),
+            code: None,
+            retryable: false,
         })));
 
         Ok(())
@@ -231,5 +256,65 @@ impl Job for DownloadChapterJob {
             Some(Ok(path)) => JobState::Completed(path.clone()),
             Some(Err(e)) => JobState::Errored(e.clone()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use shared::{model::ChapterId, settings::Settings};
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn stored_chapter_opens_without_a_loaded_source() {
+        let directory = tempdir().expect("create test directory");
+        let chapter_id = ChapterId::from_strings(
+            "missing.source".to_owned(),
+            "manga".to_owned(),
+            "chapter".to_owned(),
+        );
+        let storage = ChapterStorage::new(
+            directory.path().join("downloads"),
+            size::Size::from_bytes(1024 * 1024),
+            false,
+        )
+        .expect("create chapter storage");
+        let stored_path = storage.get_path_to_store_chapter(&chapter_id, false, false);
+        std::fs::write(&stored_path, b"stored chapter").expect("write stored chapter");
+        let source_manager = Arc::new(tokio::sync::Mutex::new(
+            SourceManager::from_folder(directory.path().join("sources"), Settings::default())
+                .expect("create source manager"),
+        ));
+        let database = Arc::new(
+            Database::new(&directory.path().join("database.sqlite"))
+                .await
+                .expect("create database"),
+        );
+        let (progress_tx, _) = watch::channel(Progress::Initializing);
+
+        let result = DownloadChapterJob::do_job(
+            CancellationToken::new(),
+            source_manager,
+            database,
+            storage,
+            chapter_id,
+            1,
+            false,
+            progress_tx,
+            false,
+            None,
+            ChapterTitleFormat::default(),
+        )
+        .await;
+        assert!(
+            result.is_ok(),
+            "stored chapter should open without a source"
+        );
+        let (actual_path, errors, used_ram) = result.ok().expect("checked successful result");
+
+        assert_eq!(actual_path, stored_path);
+        assert!(errors.is_empty());
+        assert!(!used_ram);
     }
 }

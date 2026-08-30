@@ -550,9 +550,10 @@ end
 
 --- @param source_id string
 --- @param manga_id string
+--- @param cache_only boolean|nil
 --- @return SuccessfulResponse<[MManga, number]>|ErrorResponse|nil
-function MangaInfoWidget:refreshDetails(source_id, manga_id)
-  if not NetworkMgr:isConnected() then
+function MangaInfoWidget:refreshDetails(source_id, manga_id, cache_only)
+  if cache_only or not NetworkMgr:isConnected() then
     local cancel_id = Backend.createCancelId()
     local response = Backend.cachedMangaDetails(cancel_id, source_id, manga_id)
 
@@ -608,7 +609,7 @@ end
 --- @param raw_manga Manga
 --- @param on_return_callback fun()|nil
 function MangaInfoWidget:fetchAndShow(raw_manga, on_return_callback)
-  local response = self:refreshDetails(raw_manga.source.id, raw_manga.id)
+  local response = self:refreshDetails(raw_manga.source.id, raw_manga.id, raw_manga.source.missing)
   if response == nil then
     return
   end

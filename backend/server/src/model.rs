@@ -46,6 +46,7 @@ pub struct SourceInformation {
     version: serde_json::Value,
     languages: Vec<String>,
     source_of_source: Option<String>,
+    missing: bool,
 }
 
 impl From<DomainSourceInformation> for SourceInformation {
@@ -56,6 +57,7 @@ impl From<DomainSourceInformation> for SourceInformation {
             version: value.version,
             languages: value.languages,
             source_of_source: value.source_of_source,
+            missing: value.missing,
         }
     }
 }

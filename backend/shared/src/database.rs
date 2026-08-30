@@ -944,8 +944,8 @@ impl Database {
 
         let mangas = rows
             .into_iter()
-            .filter_map(|row| {
-                let source = source_collection.get_by_id(&SourceId::new(row.source_id.clone()))?;
+            .map(|row| {
+                let source_id = SourceId::new(row.source_id.clone());
                 let info = MangaInformation {
                     id: MangaId::from_strings(row.source_id, row.manga_id),
                     title: row.title,
@@ -955,15 +955,18 @@ impl Database {
                     viewer: MangaViewer::from(row.viewer.unwrap_or(0) as u8),
                 };
 
-                Some(Manga {
-                    source_information: SourceInformation::from(source.manifest()),
+                Manga {
+                    source_information: source_collection
+                        .get_by_id(&source_id)
+                        .map(|source| SourceInformation::from(source.manifest()))
+                        .unwrap_or_else(|| SourceInformation::missing(source_id)),
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
                     last_read: row.last_read,
                     in_library: true,
                     state_viewer: row.state_viewer != 0,
-                })
+                }
             })
             .collect();
 
@@ -3225,8 +3228,8 @@ impl Database {
 
         let mangas = rows
             .into_iter()
-            .filter_map(|row| {
-                let source = source_collection.get_by_id(&SourceId::new(row.source_id.clone()))?;
+            .map(|row| {
+                let source_id = SourceId::new(row.source_id.clone());
                 let info = MangaInformation {
                     id: MangaId::from_strings(row.source_id, row.manga_id),
                     title: row.title,
@@ -3236,15 +3239,18 @@ impl Database {
                     viewer: MangaViewer::from(row.viewer.unwrap_or(0) as u8),
                 };
 
-                Some(Manga {
-                    source_information: SourceInformation::from(source.manifest()),
+                Manga {
+                    source_information: source_collection
+                        .get_by_id(&source_id)
+                        .map(|source| SourceInformation::from(source.manifest()))
+                        .unwrap_or_else(|| SourceInformation::missing(source_id)),
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
                     last_read: row.last_read,
                     in_library: false,
                     state_viewer: row.state_viewer != 0,
-                })
+                }
             })
             .collect();
 
@@ -3569,6 +3575,18 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    struct NoSources;
+
+    impl SourceCollection for NoSources {
+        fn get_by_id(&self, _id: &SourceId) -> Option<&crate::source::Source> {
+            None
+        }
+
+        fn sources(&self) -> Vec<&crate::source::Source> {
+            Vec::new()
+        }
+    }
+
     fn chapter_information(manga_id: &MangaId, chapter_id: &str, lang: &str) -> ChapterInformation {
         ChapterInformation {
             id: ChapterId::new(manga_id.clone(), chapter_id.to_string()),
@@ -3662,5 +3680,70 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(lang, None);
+    }
+
+    #[tokio::test]
+    async fn missing_source_keeps_library_and_playlist_manga_visible_after_restart() {
+        let directory = tempdir().unwrap();
+        let database_path = directory.path().join("database.sqlite");
+        let database = Database::new(&database_path).await.unwrap();
+        let source_id = "missing.source";
+        let manga_informations = (0..18)
+            .map(|index| MangaInformation {
+                id: MangaId::from_strings(source_id.to_owned(), format!("manga-{index}")),
+                title: Some(format!("Manga {index}")),
+                author: None,
+                artist: None,
+                cover_url: None,
+                viewer: MangaViewer::default(),
+            })
+            .collect::<Vec<_>>();
+        database
+            .upsert_cached_manga_information(&manga_informations)
+            .await
+            .unwrap();
+        let playlist = database
+            .create_playlist("Preserved".to_owned())
+            .await
+            .unwrap();
+        for manga in &manga_informations {
+            database
+                .add_manga_to_library(manga.id.clone())
+                .await
+                .unwrap();
+            database
+                .add_manga_to_playlist(playlist.id, manga.id.clone())
+                .await
+                .unwrap();
+        }
+        drop(database);
+
+        let database = Database::new(&database_path).await.unwrap();
+        let library = database
+            .get_manga_library_with_read_count(
+                &NoSources,
+                &crate::settings::LibrarySortingMode::Ascending,
+            )
+            .await
+            .unwrap();
+        let playlist_manga = database
+            .get_manga_library_in_playlist_with_read_count(
+                playlist.id,
+                &NoSources,
+                &crate::settings::LibrarySortingMode::Ascending,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(library.len(), 18);
+        assert_eq!(playlist_manga.len(), 18);
+        assert!(library.iter().all(|manga| manga.source_information.missing));
+        assert!(playlist_manga
+            .iter()
+            .all(|manga| manga.source_information.missing));
+        assert_eq!(
+            library[0].source_information.name,
+            "Missing source: missing.source"
+        );
     }
 }

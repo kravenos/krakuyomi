@@ -32,7 +32,13 @@ pub enum AppError {
 
 #[derive(Serialize, Clone)]
 pub struct ErrorResponse {
+    /// Safe user-facing summary.
     pub message: String,
+    /// Stable machine-readable category when one is available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Whether repeating the same request may succeed without user changes.
+    pub retryable: bool,
 }
 
 impl AppError {
@@ -84,7 +90,17 @@ impl From<&AppError> for ErrorResponse {
             }
         };
 
-        Self { message }
+        let (code, retryable) = match value {
+            AppError::SourceNotFound => (Some("missing_source".to_owned()), false),
+            AppError::NetworkFailure(_) => (Some("network_failure".to_owned()), true),
+            _ => (None, false),
+        };
+
+        Self {
+            message,
+            code,
+            retryable,
+        }
     }
 }
 
@@ -119,5 +135,29 @@ where
 {
     fn from(err: E) -> Self {
         Self::Other(err.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_source_error_has_stable_safe_fields() {
+        let response = ErrorResponse::from(&AppError::SourceNotFound);
+
+        assert_eq!(response.message, "Source was not found");
+        assert_eq!(response.code.as_deref(), Some("missing_source"));
+        assert!(!response.retryable);
+    }
+
+    #[test]
+    fn network_error_is_marked_retryable() {
+        let response = ErrorResponse::from(&AppError::NetworkFailure(anyhow::anyhow!(
+            "temporary failure"
+        )));
+
+        assert_eq!(response.code.as_deref(), Some("network_failure"));
+        assert!(response.retryable);
     }
 }
