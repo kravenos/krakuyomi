@@ -1,4 +1,8 @@
-use std::{fs::File, io::Write, path::Path};
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use tempfile::NamedTempFile;
@@ -6,64 +10,87 @@ use tempfile::NamedTempFile;
 use super::schema::Settings;
 
 impl Settings {
-    pub fn from_file(path: &Path) -> Result<Self> {
-        let file = File::open(path).with_context(|| "Couldn't open file")?;
-        let mut settings: Settings = serde_json_lenient::from_reader(file)
-            .with_context(|| "Couldn't parse file contents")?;
+    /// Parses settings JSON and applies architecture-dependent defaults.
+    pub fn from_json(contents: &str) -> Result<Self> {
+        let settings: Settings = serde_json_lenient::from_str(contents)
+            .with_context(|| "Couldn't parse settings contents")?;
 
-        if settings.concurrent_requests_pages.is_none() {
-            settings.concurrent_requests_pages =
-                Some(if cfg!(target_arch = "arm") && cfg!(target_os = "linux") {
-                    4
-                } else {
-                    5
-                });
-        }
-
-        Ok(settings)
+        Ok(apply_runtime_defaults(settings))
     }
 
-    /// Atomically publishes a complete settings file at `path`.
+    pub fn from_file(path: &Path) -> Result<Self> {
+        let file = File::open(path).with_context(|| "Couldn't open file")?;
+        let settings: Settings = serde_json_lenient::from_reader(file)
+            .with_context(|| "Couldn't parse file contents")?;
+
+        Ok(apply_runtime_defaults(settings))
+    }
+
+    /// Atomically publishes a complete settings file and last-known-good
+    /// backup at `path`.
     ///
     /// The temporary file is created beside the target so the final replace
     /// stays on one filesystem. A failed write or sync leaves the previous
     /// settings file untouched.
     pub fn save_to_file(&self, path: &Path) -> Result<()> {
-        let parent = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        let mut temporary = NamedTempFile::new_in(parent).with_context(|| {
-            format!(
-                "couldn't create temporary settings file in {}",
-                parent.display()
-            )
-        })?;
-
-        serde_json_lenient::to_writer_pretty(temporary.as_file_mut(), self)
-            .with_context(|| "couldn't serialize settings")?;
-        temporary
-            .as_file_mut()
-            .write_all(b"\n")
-            .with_context(|| "couldn't finish settings write")?;
-        temporary
-            .as_file_mut()
-            .flush()
-            .with_context(|| "couldn't flush settings")?;
-        temporary
-            .as_file()
-            .sync_all()
-            .with_context(|| "couldn't sync settings to disk")?;
-
-        temporary
-            .persist(path)
-            .map_err(|error| error.error)
-            .with_context(|| format!("couldn't publish settings at {}", path.display()))?;
-
-        sync_parent_directory(parent);
-
-        Ok(())
+        atomic_write_settings(self, &backup_path_for(path))?;
+        atomic_write_settings(self, path)
     }
+}
+
+fn apply_runtime_defaults(mut settings: Settings) -> Settings {
+    if settings.concurrent_requests_pages.is_none() {
+        settings.concurrent_requests_pages =
+            Some(if cfg!(target_arch = "arm") && cfg!(target_os = "linux") {
+                4
+            } else {
+                5
+            });
+    }
+
+    settings
+}
+
+/// Returns the last-known-good backup path associated with `path`.
+pub fn backup_path_for(path: &Path) -> PathBuf {
+    path.with_extension("backup.json")
+}
+
+fn atomic_write_settings(settings: &Settings, path: &Path) -> Result<()> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut temporary = NamedTempFile::new_in(parent).with_context(|| {
+        format!(
+            "couldn't create temporary settings file in {}",
+            parent.display()
+        )
+    })?;
+
+    serde_json_lenient::to_writer_pretty(temporary.as_file_mut(), settings)
+        .with_context(|| "couldn't serialize settings")?;
+    temporary
+        .as_file_mut()
+        .write_all(b"\n")
+        .with_context(|| "couldn't finish settings write")?;
+    temporary
+        .as_file_mut()
+        .flush()
+        .with_context(|| "couldn't flush settings")?;
+    temporary
+        .as_file()
+        .sync_all()
+        .with_context(|| "couldn't sync settings to disk")?;
+
+    temporary
+        .persist(path)
+        .map_err(|error| error.error)
+        .with_context(|| format!("couldn't publish settings at {}", path.display()))?;
+
+    sync_parent_directory(parent);
+
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -106,9 +133,11 @@ mod tests {
             fs::read_dir(directory.path())
                 .expect("list settings directory")
                 .count(),
-            1,
-            "a successful save must not leave a temporary file"
+            2,
+            "a successful save must leave only the primary and backup files"
         );
+        let backup = Settings::from_file(&backup_path_for(&path)).expect("read settings backup");
+        assert_eq!(backup.languages, expected.languages);
     }
 
     #[cfg(unix)]

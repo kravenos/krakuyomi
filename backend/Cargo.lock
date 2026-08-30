@@ -4267,6 +4267,7 @@ dependencies = [
  "serde_json",
  "shared",
  "size",
+ "tempfile",
  "tokio",
  "tokio-util",
  "url",
