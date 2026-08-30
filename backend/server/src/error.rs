@@ -24,6 +24,7 @@ pub(crate) fn setcap_hint() -> String {
 pub enum AppError {
     SourceNotFound,
     NotFound,
+    Conflict(String),
     DownloadAllChaptersProgressNotFound,
     NetworkFailure(anyhow::Error),
     Other(anyhow::Error),
@@ -62,6 +63,7 @@ impl From<&AppError> for StatusCode {
             AppError::SourceNotFound
             | AppError::NotFound
             | AppError::DownloadAllChaptersProgressNotFound => StatusCode::NOT_FOUND,
+            AppError::Conflict(_) => StatusCode::CONFLICT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -72,6 +74,7 @@ impl From<&AppError> for ErrorResponse {
         let message = match value {
             AppError::SourceNotFound => "Source was not found".to_string(),
             AppError::NotFound => "Requested item was not found".to_string(),
+            AppError::Conflict(message) => message.clone(),
             AppError::DownloadAllChaptersProgressNotFound => {
                 "No download is in progress.".to_string()
             }
@@ -92,6 +95,7 @@ impl From<&AppError> for ErrorResponse {
 
         let (code, retryable) = match value {
             AppError::SourceNotFound => (Some("missing_source".to_owned()), false),
+            AppError::Conflict(_) => (Some("stale_uninstall_preview".to_owned()), false),
             AppError::NetworkFailure(_) => (Some("network_failure".to_owned()), true),
             _ => (None, false),
         };
@@ -159,5 +163,13 @@ mod tests {
 
         assert_eq!(response.code.as_deref(), Some("network_failure"));
         assert!(response.retryable);
+    }
+
+    #[test]
+    fn uninstall_conflict_has_stable_code() {
+        let response = ErrorResponse::from(&AppError::Conflict("review again".to_owned()));
+
+        assert_eq!(response.code.as_deref(), Some("stale_uninstall_preview"));
+        assert!(!response.retryable);
     }
 }

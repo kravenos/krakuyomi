@@ -583,6 +583,14 @@ msgstr ""
 msgid "Installed sources"
 msgstr ""
 
+#: ../InstalledSourcesListing.lua:137
+msgid "Library manga affected"
+msgstr ""
+
+#: ../InstalledSourcesListing.lua:138
+msgid "Library entries and downloaded chapters will be kept."
+msgstr ""
+
 #: ../InstalledSourcesListing.lua:95
 msgid "No installed sources found"
 msgstr ""

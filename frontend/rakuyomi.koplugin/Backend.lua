@@ -689,12 +689,27 @@ function Backend.installSource(source_id, source_of_source, languages)
   })
 end
 
---- Uninstalls a source.
+--- @class SourceUninstallPreview: { source_ids: string[], library_manga_count: number }
+
+--- Returns the current library impact of uninstalling a source package.
+--- @return SuccessfulResponse<SourceUninstallPreview>|ErrorResponse
+function Backend.getSourceUninstallPreview(source_id)
+  return Backend.requestJson({
+    path = "/installed-sources/" .. source_id .. "/uninstall-preview",
+  })
+end
+
+--- Uninstalls a source after confirming the reviewed library count.
+--- @param source_id string
+--- @param confirmed_library_count number
 --- @return SuccessfulResponse<nil>|ErrorResponse
-function Backend.uninstallSource(source_id)
+function Backend.uninstallSource(source_id, confirmed_library_count)
   return Backend.requestJson({
     path = "/installed-sources/" .. source_id,
     method = "DELETE",
+    query_params = {
+      confirmed_library_count = confirmed_library_count,
+    },
   })
 end
 
