@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Result};
 use tokio::time::{timeout, Duration};
 use tokio_util::sync::CancellationToken;
 
@@ -7,6 +6,7 @@ use crate::{
     database::Database,
     model::MangaId,
     source::{model::PublishingStatus, Source},
+    source_health::SourceOperationError,
 };
 
 pub async fn refresh_manga_details(
@@ -16,7 +16,7 @@ pub async fn refresh_manga_details(
     source: &Source,
     id: &MangaId,
     seconds: u64,
-) -> Result<PublishingStatus> {
+) -> Result<PublishingStatus, SourceOperationError> {
     let duration = Duration::from_secs(seconds);
 
     let child_token = token.child_token();
@@ -30,20 +30,24 @@ pub async fn refresh_manga_details(
     let manga_details = match timeout(duration, fetch_task).await {
         Ok(Ok(manga)) => manga,
 
-        Ok(Err(e)) => return Err(anyhow!("source error: {}", e)),
+        Ok(Err(error)) => return Err(SourceOperationError::classify(error)),
 
         Err(_) => {
             child_token.cancel();
-            return Err(anyhow!("timeout when refreshing manga details"));
+            return Err(SourceOperationError::timeout());
         }
     };
 
-    db.upsert_cached_manga_details(id, &manga_details).await?;
+    db.upsert_cached_manga_details(id, &manga_details)
+        .await
+        .map_err(anyhow::Error::from)
+        .map_err(SourceOperationError::classify)?;
 
     if let Some(url) = &manga_details.cover_url {
         chapter_storage
             .cached_poster(token, id, || source.get_image_request(url.to_owned(), None))
-            .await?;
+            .await
+            .map_err(SourceOperationError::classify)?;
     }
 
     Ok(manga_details.status)

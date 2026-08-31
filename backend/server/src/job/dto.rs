@@ -78,7 +78,10 @@ impl JobDetail {
                 JobDetail::Pending(serde_json::to_value(v).unwrap()),
                 Some(RunningJob::LibraryChapters(job)),
             ),
-            JobState::Completed(_) => (JobDetail::Completed(().into()), None),
+            JobState::Completed(value) => (
+                JobDetail::Completed(serde_json::to_value(value).unwrap()),
+                None,
+            ),
             JobState::Errored(v) => (JobDetail::Error(serde_json::to_value(v).unwrap()), None),
         }
     }
@@ -91,7 +94,10 @@ impl JobDetail {
                 JobDetail::Pending(serde_json::to_value(v).unwrap()),
                 Some(RunningJob::LibraryDetails(job)),
             ),
-            JobState::Completed(_) => (JobDetail::Completed(().into()), None),
+            JobState::Completed(value) => (
+                JobDetail::Completed(serde_json::to_value(value).unwrap()),
+                None,
+            ),
             JobState::Errored(v) => (JobDetail::Error(serde_json::to_value(v).unwrap()), None),
         }
     }

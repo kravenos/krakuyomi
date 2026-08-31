@@ -250,6 +250,7 @@ async fn check_mangas_update(
         chapter_storage,
         source_manager,
         cancel_token_store,
+        source_health,
         ..
     }): StateExtractor<State>,
     Query(GetCheckMangasUpdate { cancel_id }): Query<GetCheckMangasUpdate>,
@@ -258,8 +259,14 @@ async fn check_mangas_update(
     let source_manager = source_manager.lock().await;
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    let _ =
-        usecases::check_mangas_update(&token.0, &database, &chapter_storage, &source_manager).await;
+    usecases::check_mangas_update(
+        &token.0,
+        &database,
+        &chapter_storage,
+        &source_manager,
+        &source_health,
+    )
+    .await;
 
     Ok(Json(()))
 }
@@ -291,6 +298,7 @@ async fn get_mangas(
         cancel_token_store,
         chapter_storage,
         settings,
+        source_health,
         ..
     }): StateExtractor<State>,
     Query(GetMangasQuery {
@@ -325,6 +333,7 @@ async fn get_mangas(
                 &exclude,
                 page,
                 30,
+                &source_health,
             )
         })
         .await
@@ -384,6 +393,7 @@ async fn add_manga_to_library(
         chapter_storage,
         source_manager,
         settings,
+        source_health,
         ..
     }): StateExtractor<State>,
     Path(params): Path<MangaChaptersPathParams>,
@@ -399,9 +409,10 @@ async fn add_manga_to_library(
         let cs = chapter_storage.lock().await.clone();
         let sm = source_manager.lock().await.clone();
         let settings = settings.clone();
+        let source_health = source_health.clone();
 
         tokio::spawn(async move {
-            shared::usecases::run_manga_cron(&db, &cs, &sm, &settings).await;
+            shared::usecases::run_manga_cron(&db, &cs, &sm, &settings, &source_health).await;
         });
     }
 
@@ -524,6 +535,7 @@ async fn refresh_manga_chapters(
     StateExtractor(State {
         database,
         cancel_token_store,
+        source_health,
         ..
     }): StateExtractor<State>,
     SourceExtractor(source): SourceExtractor,
@@ -534,7 +546,25 @@ async fn refresh_manga_chapters(
 
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    usecases::refresh_manga_chapters(&token.0, &database, &source, &manga_id, 60).await?;
+    let result =
+        usecases::refresh_manga_chapters(&token.0, &database, &source, &manga_id, 60).await;
+    let observation = match &result {
+        Ok(_) => shared::source_health::SourceHealthObservation::success(
+            manga_id.source_id().value().clone(),
+            shared::source_health::SourceOperationClass::RefreshChapters,
+            manga_id.value(),
+        ),
+        Err(error) => shared::source_health::SourceHealthObservation::failure(
+            manga_id.source_id().value().clone(),
+            shared::source_health::SourceOperationClass::RefreshChapters,
+            manga_id.value(),
+            error,
+        ),
+    };
+    if let Err(error) = source_health.record_batch(vec![observation]).await {
+        log::warn!("couldn't persist chapter refresh health: {error:#}");
+    }
+    result.map_err(AppError::SourceOperation)?;
 
     Ok(Json(()))
 }
@@ -583,6 +613,7 @@ async fn refresh_manga_details(
         database,
         chapter_storage,
         cancel_token_store,
+        source_health,
         ..
     }): StateExtractor<State>,
     SourceExtractor(source): SourceExtractor,
@@ -594,8 +625,32 @@ async fn refresh_manga_details(
     let chapter_storage = &*chapter_storage.lock().await;
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    usecases::refresh_manga_details(&token.0, &database, chapter_storage, &source, &manga_id, 60)
-        .await?;
+    let result = usecases::refresh_manga_details(
+        &token.0,
+        &database,
+        chapter_storage,
+        &source,
+        &manga_id,
+        60,
+    )
+    .await;
+    let observation = match &result {
+        Ok(_) => shared::source_health::SourceHealthObservation::success(
+            manga_id.source_id().value().clone(),
+            shared::source_health::SourceOperationClass::RefreshDetails,
+            manga_id.value(),
+        ),
+        Err(error) => shared::source_health::SourceHealthObservation::failure(
+            manga_id.source_id().value().clone(),
+            shared::source_health::SourceOperationClass::RefreshDetails,
+            manga_id.value(),
+            error,
+        ),
+    };
+    if let Err(error) = source_health.record_batch(vec![observation]).await {
+        log::warn!("couldn't persist detail refresh health: {error:#}");
+    }
+    result.map_err(AppError::SourceOperation)?;
 
     Ok(Json(()))
 }

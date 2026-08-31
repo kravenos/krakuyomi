@@ -200,13 +200,14 @@ local function formatSearchErrors(errors)
 
   local max_items = 5
   local lines = {}
+  local SourceError = require("SourceError")
 
   for i = 1, math.min(#errors, max_items) do
     local err = errors[i]
     table.insert(lines, string.format(
       "%s | %s",
       err.source_id,
-      err.reason
+      SourceError.message(err.category, err.message)
     ))
   end
 

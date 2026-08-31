@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use shared::{
     chapter_storage::ChapterStorage, database::Database, settings::Settings,
-    source_manager::SourceManager,
+    source_health::SourceHealthStore, source_manager::SourceManager,
 };
 use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -47,6 +47,7 @@ pub struct State {
     pub settings: Arc<Mutex<Settings>>,
     pub settings_path: PathBuf,
     pub catalog_cache_path: PathBuf,
+    pub source_health: SourceHealthStore,
     pub job_state: JobState,
     pub cancel_token_store: Arc<Mutex<HashMap<usize, CancellationToken>>>,
     pub download_semaphore: Arc<Semaphore>,

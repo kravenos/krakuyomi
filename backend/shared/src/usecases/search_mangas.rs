@@ -4,6 +4,10 @@ use crate::{
     model::{Manga, MangaId, MangaInformation, MangaState, SourceInformation},
     settings::{SearchViewMode, Settings},
     source_collection::SourceCollection,
+    source_health::{
+        SourceErrorCategory, SourceHealthObservation, SourceHealthStore, SourceOperationClass,
+        SourceOperationError,
+    },
 };
 use futures::{stream, StreamExt};
 use log::warn;
@@ -19,7 +23,8 @@ const POSTER_DOWNLOAD_TIMEOUT_SECS: u64 = 10;
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct SearchError {
     pub source_id: String,
-    pub reason: String,
+    pub category: SourceErrorCategory,
+    pub message: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -33,6 +38,7 @@ pub async fn search_mangas(
     exclude: &Option<Vec<String>>,
     page: i32,
     seconds: u64,
+    source_health: &SourceHealthStore,
 ) -> Result<(Vec<Manga>, Vec<SearchError>, bool), Error> {
     // FIXME this looks awful
     let query = &query;
@@ -47,148 +53,179 @@ pub async fn search_mangas(
         .cloned()
         .collect::<Vec<_>>();
 
-    let source_results: Vec<(SourceMangaSearchResults, Option<SearchError>, bool)> =
-        stream::iter(sources)
-            .map(|source| {
-                let cancellation_token = cancellation_token.clone();
-                let query = query.to_string();
-                let chapter_storage = chapter_storage.clone();
+    let source_results: Vec<(
+        SourceMangaSearchResults,
+        Option<SearchError>,
+        bool,
+        Option<SourceHealthObservation>,
+    )> = stream::iter(sources)
+        .map(|source| {
+            let cancellation_token = cancellation_token.clone();
+            let query = query.to_string();
+            let chapter_storage = chapter_storage.clone();
 
-                async move {
-                    if exclude
-                        .as_ref()
-                        .map(|exclude| exclude.contains(&source.manifest().info.id))
-                        .unwrap_or(false)
-                    {
-                        let source_info = source.manifest().into();
-                        return (
-                            SourceMangaSearchResults {
-                                source_information: source_info,
-                                mangas: vec![],
-                            },
+            async move {
+                if exclude
+                    .as_ref()
+                    .map(|exclude| exclude.contains(&source.manifest().info.id))
+                    .unwrap_or(false)
+                {
+                    let source_info = source.manifest().into();
+                    return (
+                        SourceMangaSearchResults {
+                            source_information: source_info,
+                            mangas: vec![],
+                        },
+                        None,
+                        false,
+                        None,
+                    );
+                }
+
+                let token = cancellation_token.child_token();
+                let item_key = query.clone();
+
+                let fetch_task = async { source.search_mangas(token.clone(), query, page).await };
+
+                let source_id = source.manifest().info.id.clone();
+                let (manga_informations, has_next, error, observation) =
+                    match timeout(Duration::from_secs(seconds), fetch_task).await {
+                        Ok(Ok((source_mangas, has_next_page))) => (
+                            source_mangas
+                                .into_iter()
+                                .map(MangaInformation::from)
+                                .collect(),
+                            has_next_page,
                             None,
-                            false,
-                        );
-                    }
+                            Some(SourceHealthObservation::success(
+                                source_id.clone(),
+                                SourceOperationClass::Search,
+                                &item_key,
+                            )),
+                        ),
 
-                    let token = cancellation_token.child_token();
+                        Ok(Err(e)) => {
+                            let error = SourceOperationError::classify(e);
+                            warn!(
+                                "failed to search mangas from source {}: {:#}",
+                                source_id,
+                                error.cause()
+                            );
 
-                    let fetch_task =
-                        async { source.search_mangas(token.clone(), query, page).await };
+                            (
+                                vec![],
+                                false,
+                                Some(SearchError {
+                                    source_id: source_id.clone(),
+                                    category: error.category(),
+                                    message: error.safe_message().to_owned(),
+                                }),
+                                Some(SourceHealthObservation::failure(
+                                    source_id.clone(),
+                                    SourceOperationClass::Search,
+                                    &item_key,
+                                    &error,
+                                )),
+                            )
+                        }
 
-                    let (manga_informations, has_next, error) =
-                        match timeout(Duration::from_secs(seconds), fetch_task).await {
-                            Ok(Ok((source_mangas, has_next_page))) => (
-                                source_mangas
-                                    .into_iter()
-                                    .map(MangaInformation::from)
-                                    .collect(),
-                                has_next_page,
-                                None,
-                            ),
+                        Err(_) => {
+                            token.cancel();
+                            let error = SourceOperationError::timeout();
 
-                            Ok(Err(e)) => {
-                                warn!(
-                                    "failed to search mangas from source {}: {:#}",
-                                    source.manifest().info.id,
-                                    e
-                                );
+                            (
+                                vec![],
+                                false,
+                                Some(SearchError {
+                                    source_id: source_id.clone(),
+                                    category: error.category(),
+                                    message: error.safe_message().to_owned(),
+                                }),
+                                Some(SourceHealthObservation::failure(
+                                    source_id.clone(),
+                                    SourceOperationClass::Search,
+                                    &item_key,
+                                    &error,
+                                )),
+                            )
+                        }
+                    };
 
-                                (
-                                    vec![],
-                                    false,
-                                    Some(SearchError {
-                                        source_id: source.manifest().info.id.clone(),
-                                        reason: format!("{e:#}"),
-                                    }),
-                                )
-                            }
+                // Write through to the database
+                let _ = db
+                    .upsert_cached_manga_information(&manga_informations)
+                    .await;
 
-                            Err(_) => {
-                                token.cancel();
-
-                                (
-                                    vec![],
-                                    false,
-                                    Some(SearchError {
-                                        source_id: source.manifest().info.id.clone(),
-                                        reason: "timeout".to_string(),
-                                    }),
-                                )
-                            }
-                        };
-
-                    // Write through to the database
-                    let _ = db
-                        .upsert_cached_manga_information(&manga_informations)
-                        .await;
-
-                    if settings.search_view_mode != SearchViewMode::Base {
-                        // Download posters concurrently so cover/grid view can render them
-                        let poster_items: Vec<(MangaId, url::Url)> = manga_informations
-                            .iter()
-                            .filter_map(|info| {
-                                info.cover_url
-                                    .as_ref()
-                                    .map(|url| (info.id.clone(), url.clone()))
-                            })
-                            .collect();
-                        stream::iter(poster_items)
-                            .map(|(id, url)| {
-                                let chapter_storage = chapter_storage.clone();
-                                let source = source.clone();
-                                let token = token.clone();
-                                async move {
-                                    let _ = timeout(
-                                        Duration::from_secs(POSTER_DOWNLOAD_TIMEOUT_SECS),
-                                        chapter_storage.cached_poster(&token, &id, || {
-                                            source.get_image_request(url.clone(), None)
-                                        }),
-                                    )
-                                    .await;
-                                }
-                            })
-                            .buffered(CONCURRENT_POSTER_DOWNLOADS)
-                            .collect::<Vec<_>>()
-                            .await;
-                    }
-
-                    // Fetch unread chapters count for each manga
-                    let manga_ids: Vec<_> =
-                        manga_informations.iter().map(|m| m.id.clone()).collect();
-                    let unread_counts_map = db
-                        .fetch_unread_chapter_counts_minimal(&manga_ids)
-                        .await
-                        .unwrap_or_default();
-                    let mangas: Vec<_> = manga_informations
-                        .into_iter()
-                        .map(move |manga| {
-                            let unread_count = unread_counts_map.get(&manga.id).copied();
-                            (manga, unread_count)
+                if settings.search_view_mode != SearchViewMode::Base {
+                    // Download posters concurrently so cover/grid view can render them
+                    let poster_items: Vec<(MangaId, url::Url)> = manga_informations
+                        .iter()
+                        .filter_map(|info| {
+                            info.cover_url
+                                .as_ref()
+                                .map(|url| (info.id.clone(), url.clone()))
                         })
                         .collect();
-
-                    (
-                        SourceMangaSearchResults {
-                            source_information: source.manifest().into(),
-                            mangas,
-                        },
-                        error,
-                        has_next,
-                    )
+                    stream::iter(poster_items)
+                        .map(|(id, url)| {
+                            let chapter_storage = chapter_storage.clone();
+                            let source = source.clone();
+                            let token = token.clone();
+                            async move {
+                                let _ = timeout(
+                                    Duration::from_secs(POSTER_DOWNLOAD_TIMEOUT_SECS),
+                                    chapter_storage.cached_poster(&token, &id, || {
+                                        source.get_image_request(url.clone(), None)
+                                    }),
+                                )
+                                .await;
+                            }
+                        })
+                        .buffered(CONCURRENT_POSTER_DOWNLOADS)
+                        .collect::<Vec<_>>()
+                        .await;
                 }
-            })
-            .buffered(CONCURRENT_SEARCH_REQUESTS)
-            .collect::<Vec<_>>()
-            .await;
+
+                // Fetch unread chapters count for each manga
+                let manga_ids: Vec<_> = manga_informations.iter().map(|m| m.id.clone()).collect();
+                let unread_counts_map = db
+                    .fetch_unread_chapter_counts_minimal(&manga_ids)
+                    .await
+                    .unwrap_or_default();
+                let mangas: Vec<_> = manga_informations
+                    .into_iter()
+                    .map(move |manga| {
+                        let unread_count = unread_counts_map.get(&manga.id).copied();
+                        (manga, unread_count)
+                    })
+                    .collect();
+
+                (
+                    SourceMangaSearchResults {
+                        source_information: source.manifest().into(),
+                        mangas,
+                    },
+                    error,
+                    has_next,
+                    observation,
+                )
+            }
+        })
+        .buffered(CONCURRENT_SEARCH_REQUESTS)
+        .collect::<Vec<_>>()
+        .await;
 
     let mut errors: Vec<SearchError> = vec![];
     let mut has_next_page = false;
+    let mut observations = Vec::new();
     let mut mangas: Vec<_> = source_results
         .into_iter()
-        .flat_map(|(results, error, has_next)| {
+        .flat_map(|(results, error, has_next, observation)| {
             if let Some(error) = error {
                 errors.push(error);
+            }
+            if let Some(observation) = observation {
+                observations.push(observation);
             }
             if has_next {
                 has_next_page = true;
@@ -215,6 +252,10 @@ pub async fn search_mangas(
             })
         })
         .collect();
+
+    if let Err(error) = source_health.record_batch(observations).await {
+        warn!("couldn't persist search health: {error:#}");
+    }
 
     mangas.sort_by_cached_key(|manga| {
         manga

@@ -1,6 +1,7 @@
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local ErrorDialog = require("ErrorDialog")
+local SourceError = require("SourceError")
 local _ = require("gettext+")
 
 --- @class BasicJobDialog
@@ -227,9 +228,17 @@ function BasicJobDialog:onJobFinished(state)
 
     if state.type == 'SUCCESS' then
         if state.body and type(state.body) == 'table' then
-            -- Collect final errors if any
-            for _, err in ipairs(state.body) do
-                table.insert(self.errors, err)
+            if state.body.summaries then
+                for _, summary in ipairs(state.body.summaries) do
+                    if (summary.failed or 0) > 0 or (summary.skipped or 0) > 0 then
+                        table.insert(self.errors, SourceError.formatSummary(summary))
+                    end
+                end
+            else
+                -- Retain compatibility with jobs that return a plain list.
+                for _, err in ipairs(state.body) do
+                    table.insert(self.errors, err)
+                end
             end
         end
 

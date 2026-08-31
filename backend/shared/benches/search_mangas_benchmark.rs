@@ -24,6 +24,10 @@ pub fn search_mangas_benchmark(c: &mut Criterion) {
     }
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
+    let source_health_dir = tempfile::tempdir().unwrap();
+    let source_health = shared::source_health::SourceHealthStore::open(
+        source_health_dir.path().join("source_health.json"),
+    );
 
     c.bench_function("search_mangas", |b| {
         b.to_async(&runtime).iter(|| async {
@@ -47,6 +51,7 @@ pub fn search_mangas_benchmark(c: &mut Criterion) {
                 &None,
                 1,
                 60,
+                &source_health,
             )
             .await
             .unwrap();

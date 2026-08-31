@@ -464,7 +464,22 @@ end
 
 --- @class SearchError
 --- @field source_id string
---- @field reason string
+--- @field category 'timeout'|'network'|'http'|'parse'|'source_trap'|'incompatible'|'missing_source'|'internal'
+--- @field message string Safe fallback message.
+
+--- @class SourceOperationSummary
+--- @field source_id string
+--- @field source_name string
+--- @field attempted number
+--- @field succeeded number
+--- @field failed number
+--- @field skipped number
+--- @field category string|nil
+--- @field message string|nil
+--- @field failed_item_ids string[]
+
+--- @class SourceOperationReport
+--- @field summaries SourceOperationSummary[]
 
 --- Searches manga from the manga sources.
 --- @param cancel_id number
