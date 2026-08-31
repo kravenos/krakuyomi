@@ -252,6 +252,7 @@ mod tests {
         source_lists.push(crate::settings::SourceList {
             url: Url::parse("https://github.com/lnreader/lnreader-plugins").unwrap(),
             source_type: crate::settings::SourceListType::LnReader,
+            enabled: true,
         });
         let updateable = UpdateableSettings {
             source_lists: source_lists.clone(),

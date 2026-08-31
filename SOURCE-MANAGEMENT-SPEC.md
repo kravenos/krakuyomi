@@ -138,7 +138,9 @@ copy after verification.
 
 The list screen can add, validate, reorder, refresh, disable, remove, export,
 and import exact URLs. Disabling or removing a list previews installed or
-missing sources that lose catalog coverage. It never uninstalls a source.
+missing sources that lose catalog coverage. A bulk import cannot bypass this
+preview: active lists must be disabled or removed individually first. List
+management never uninstalls a source.
 
 ## 7. Phase C: structured operations and health
 
@@ -194,6 +196,10 @@ GET    /sources/status
 GET    /installed-sources/{source_id}/uninstall-preview
 DELETE /installed-sources/{source_id}?confirmed_library_count=N
 POST   /source-catalogs/refresh
+GET    /source-catalogs/status
+POST   /source-catalogs/validate
+POST   /source-catalogs/{list_id}/refresh
+GET    /source-catalogs/{list_id}/change-preview
 POST   /sources/{source_id}/diagnoses
 ```
 

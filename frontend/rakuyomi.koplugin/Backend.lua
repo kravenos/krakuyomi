@@ -733,6 +733,49 @@ function Backend.listAvailableSources()
   })
 end
 
+--- @class SourceCatalogSummary: { list_id: string, source_type: string, provider_url: string, resolved_provider_url: string|nil, configured_order: integer, enabled: boolean, cached: boolean, fetched_at: string|nil, candidate_count: integer, last_fetch_error: string|nil }
+
+--- Lists cached state for every configured source list without refreshing it.
+--- @return SuccessfulResponse<SourceCatalogSummary[]>|ErrorResponse
+function Backend.listSourceCatalogs()
+  return Backend.requestJson({
+    path = "/source-catalogs/status",
+  })
+end
+
+--- Fetches and validates one source list without saving it.
+--- @param source_list SourceList
+--- @return SuccessfulResponse<SourceCatalogSummary>|ErrorResponse
+function Backend.validateSourceCatalog(source_list)
+  return Backend.requestJson({
+    path = "/source-catalogs/validate",
+    method = "POST",
+    body = source_list,
+  })
+end
+
+--- Refreshes one configured source list while retaining a prior valid cache on failure.
+--- @param list_id string
+--- @return SuccessfulResponse<SourceCatalogSummary>|ErrorResponse
+function Backend.refreshSourceCatalog(list_id)
+  return Backend.requestJson({
+    path = "/source-catalogs/" .. list_id .. "/refresh",
+    method = "POST",
+  })
+end
+
+--- @class CatalogCoverageSource: { source_id: string, name: string, presence: "installed"|"missing", library_manga_count: integer }
+--- @class SourceCatalogChangePreview: { list_id: string, coverage_known: boolean, affected_sources: CatalogCoverageSource[] }
+
+--- Previews sources that lose catalog coverage if a list is disabled or removed.
+--- @param list_id string
+--- @return SuccessfulResponse<SourceCatalogChangePreview>|ErrorResponse
+function Backend.getSourceCatalogChangePreview(list_id)
+  return Backend.requestJson({
+    path = "/source-catalogs/" .. list_id .. "/change-preview",
+  })
+end
+
 --- @class InstallOutcomeInstalled: { type: 'installed' }
 --- @class InstallOutcomeSelectionRequired: { type: 'selection_required', name: string, languages: string[] }
 --- @alias InstallOutcome InstallOutcomeInstalled|InstallOutcomeSelectionRequired
@@ -994,6 +1037,7 @@ end
 --- @class SourceList
 --- @field url string The URL of the list.
 --- @field type ("aidoku"|"lnreader"|"mangayomi"|"keiyoushi") The kind of index the URL points to. Defaults to "aidoku".
+--- @field enabled boolean|nil Whether the list supplies catalog entries. Missing means enabled.
 
 --- @class Settings
 --- @field chapter_sorting_mode ChapterSortingMode

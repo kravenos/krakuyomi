@@ -43,6 +43,14 @@ pub struct SourceList {
         skip_serializing_if = "SourceListType::is_aidoku"
     )]
     pub source_type: SourceListType,
+    /// Whether this list participates in catalog selection. Disabled lists
+    /// keep their position and cached data but do not supply install choices.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 /// Deserializes `source_lists`, accepting both the new structured format
@@ -68,6 +76,7 @@ where
                 .map(|url| SourceList {
                     url,
                     source_type: SourceListType::Aidoku,
+                    enabled: true,
                 })
                 .map_err(serde::de::Error::custom),
             SourceListEntry::Structured(list) => Ok(list),
@@ -593,7 +602,7 @@ mod tests {
     fn test_source_lists_deserialize_structured() {
         let json = r#"{"source_lists": [
             {"url": "https://a.example.com/index.min.json", "type": "aidoku"},
-            {"url": "https://github.com/lnreader/lnreader-plugins", "type": "lnreader"},
+            {"url": "https://github.com/lnreader/lnreader-plugins", "type": "lnreader", "enabled": false},
             {"url": "https://c.example.com/index.json"}
         ]}"#;
         let settings: Settings = serde_json::from_str(json).unwrap();
@@ -604,6 +613,9 @@ mod tests {
             SourceListType::LnReader
         );
         assert_eq!(settings.source_lists[2].source_type, SourceListType::Aidoku);
+        assert!(settings.source_lists[0].enabled);
+        assert!(!settings.source_lists[1].enabled);
+        assert!(settings.source_lists[2].enabled);
     }
 
     #[test]
@@ -626,6 +638,17 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         let first = &value["source_lists"][0];
         assert!(first.get("type").is_none());
+        assert!(first.get("enabled").is_none());
         assert_eq!(first["url"], "https://a.example.com/index.json");
+    }
+
+    #[test]
+    fn test_source_lists_serialize_disabled_state() {
+        let json =
+            r#"{"source_lists": [{"url": "https://a.example.com/index.json", "enabled": false}]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+        let serialized = serde_json::to_value(&settings).unwrap();
+
+        assert_eq!(serialized["source_lists"][0]["enabled"], false);
     }
 }
