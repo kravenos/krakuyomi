@@ -8,6 +8,7 @@ use axum::{
 use log::error;
 use serde::Serialize;
 
+use shared::source_health::SourceOperationError;
 use shared::usecases::{
     fetch_manga_chapter::Error as FetchMangaChaptersError,
     search_mangas::Error as SearchMangasError,
@@ -26,6 +27,7 @@ pub enum AppError {
     NotFound,
     Conflict(String),
     DownloadAllChaptersProgressNotFound,
+    SourceOperation(SourceOperationError),
     NetworkFailure(anyhow::Error),
     Other(anyhow::Error),
     MountTmpFs(anyhow::Error),
@@ -64,6 +66,12 @@ impl From<&AppError> for StatusCode {
             | AppError::NotFound
             | AppError::DownloadAllChaptersProgressNotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::SourceOperation(error)
+                if error.category() == shared::source_health::SourceErrorCategory::Timeout =>
+            {
+                StatusCode::GATEWAY_TIMEOUT
+            }
+            AppError::SourceOperation(_) => StatusCode::BAD_GATEWAY,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -78,6 +86,7 @@ impl From<&AppError> for ErrorResponse {
             AppError::DownloadAllChaptersProgressNotFound => {
                 "No download is in progress.".to_string()
             }
+            AppError::SourceOperation(error) => error.safe_message().to_owned(),
             AppError::NetworkFailure(e) => {
                 eprintln!("Networke error: {:?}", e);
                 format!(
@@ -96,6 +105,10 @@ impl From<&AppError> for ErrorResponse {
         let (code, retryable) = match value {
             AppError::SourceNotFound => (Some("missing_source".to_owned()), false),
             AppError::Conflict(_) => (Some("stale_uninstall_preview".to_owned()), false),
+            AppError::SourceOperation(error) => (
+                Some(error.category().code().to_owned()),
+                error.category().retryable(),
+            ),
             AppError::NetworkFailure(_) => (Some("network_failure".to_owned()), true),
             _ => (None, false),
         };
@@ -121,6 +134,7 @@ impl IntoResponse for AppError {
 
         let inner_exception = match self {
             Self::NetworkFailure(ref e) => Some(e),
+            Self::SourceOperation(ref error) => Some(error.cause()),
             Self::Other(ref e) => Some(e),
             _ => None,
         };
@@ -171,5 +185,22 @@ mod tests {
 
         assert_eq!(response.code.as_deref(), Some("stale_uninstall_preview"));
         assert!(!response.retryable);
+    }
+
+    #[test]
+    fn source_operation_error_exposes_only_the_safe_category() {
+        let response =
+            ErrorResponse::from(&AppError::SourceOperation(SourceOperationError::classify(
+                anyhow::anyhow!("WASM trap at /private/path with cookie=secret"),
+            )));
+
+        assert_eq!(response.code.as_deref(), Some("source_trap"));
+        assert_eq!(
+            response.message,
+            "The source stopped while processing the request."
+        );
+        assert!(!response.message.contains("private"));
+        assert!(!response.message.contains("secret"));
+        assert!(response.retryable);
     }
 }

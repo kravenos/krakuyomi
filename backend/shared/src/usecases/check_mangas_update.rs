@@ -13,6 +13,10 @@ use crate::{
     model::MangaId,
     source::model::PublishingStatus,
     source_collection::SourceCollection,
+    source_health::{
+        SourceErrorCategory, SourceHealthBatch, SourceHealthObservation, SourceHealthStore,
+        SourceOperationClass,
+    },
     source_manager::SourceManager,
     usecases::{refresh_manga_chapters, refresh_manga_details},
 };
@@ -24,6 +28,7 @@ pub async fn check_mangas_update(
     db: &Database,
     chapter_storage: &ChapterStorage,
     source_manager: &SourceManager,
+    source_health: &SourceHealthStore,
 ) {
     let mangas_library = match db.get_manga_library_and_status().await {
         Ok(v) => v,
@@ -33,13 +38,28 @@ pub async fn check_mangas_update(
         }
     };
 
+    let mut observations = SourceHealthBatch::default();
     for (manga, status) in mangas_library {
-        if let Err(error) =
-            check_manga_update(token, db, chapter_storage, source_manager, &manga, &status).await
+        if let Err(error) = check_manga_update(
+            token,
+            db,
+            chapter_storage,
+            source_manager,
+            &manga,
+            &status,
+            &mut observations,
+        )
+        .await
         {
             eprintln!("Warn[{}]: {}", manga.value(), error);
             continue;
         }
+    }
+    if let Err(error) = source_health
+        .record_batch(observations.into_observations())
+        .await
+    {
+        log::warn!("couldn't persist scheduled source health: {error:#}");
     }
 }
 
@@ -51,6 +71,7 @@ async fn check_manga_update(
 
     manga: &MangaId,
     status: &PublishingStatus,
+    observations: &mut SourceHealthBatch,
 ) -> Result<()> {
     let spec = ArimaSpec {
         p: 1,
@@ -66,6 +87,12 @@ async fn check_manga_update(
     }
 
     let Some(source) = source_manager.get_by_id(manga.source_id()) else {
+        observations.push(SourceHealthObservation::failure_with_category(
+            manga.source_id().value().clone(),
+            SourceOperationClass::RefreshDetails,
+            manga.value(),
+            SourceErrorCategory::MissingSource,
+        ));
         bail!(
             "Missing source {} – skip manga {}",
             manga.source_id().value(),
@@ -75,6 +102,11 @@ async fn check_manga_update(
 
     let status = match refresh_manga_details(token, db, chapter_storage, source, manga, 60).await {
         Ok(status) => {
+            observations.push(SourceHealthObservation::success(
+                manga.source_id().value().clone(),
+                SourceOperationClass::RefreshDetails,
+                manga.value(),
+            ));
             if status == PublishingStatus::Completed {
                 db.delete_last_check_update_manga(manga).await?;
             }
@@ -82,8 +114,14 @@ async fn check_manga_update(
             status
         }
         Err(err) => {
+            observations.push(SourceHealthObservation::failure(
+                manga.source_id().value().clone(),
+                SourceOperationClass::RefreshDetails,
+                manga.value(),
+                &err,
+            ));
             bail!(
-                "refresh_manga_details failed for manga {}<{}> ({:?})",
+                "refresh_manga_details failed for manga {}<{}> ({})",
                 manga.value(),
                 manga.source_id().value(),
                 err
@@ -93,10 +131,23 @@ async fn check_manga_update(
 
     let old_chapters = db.find_cached_chapter_informations(manga).await?;
     let new_chapters = match refresh_manga_chapters(token, db, source, manga, 60).await {
-        Ok(chaps) => chaps,
+        Ok(chaps) => {
+            observations.push(SourceHealthObservation::success(
+                manga.source_id().value().clone(),
+                SourceOperationClass::RefreshChapters,
+                manga.value(),
+            ));
+            chaps
+        }
         Err(err) => {
+            observations.push(SourceHealthObservation::failure(
+                manga.source_id().value().clone(),
+                SourceOperationClass::RefreshChapters,
+                manga.value(),
+                &err,
+            ));
             bail!(
-                "refresh_manga_chapters failed for manga {}: {:?}",
+                "refresh_manga_chapters failed for manga {}: {}",
                 manga.value(),
                 err
             )
@@ -164,6 +215,7 @@ pub async fn run_manga_cron(
     chapter_storage: &ChapterStorage,
     source_manager: &SourceManager,
     settings: &Settings,
+    source_health: &SourceHealthStore,
 ) {
     if CRON_RUNNING
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -194,7 +246,7 @@ pub async fn run_manga_cron(
         if next_manga.is_none() {
             println!("Next manga not found. Re-check all mangas");
 
-            check_mangas_update(token, db, chapter_storage, source_manager).await;
+            check_mangas_update(token, db, chapter_storage, source_manager, source_health).await;
             next_manga = match db.get_next_ts_arima_min(&skip_sources).await {
                 Ok(v) => v,
                 Err(e) => {
@@ -244,6 +296,7 @@ pub async fn run_manga_cron(
             }
         };
 
+        let mut observations = SourceHealthBatch::default();
         for (manga_id, status) in due_mangas {
             if skip_sources.contains(&manga_id.source_id().value().as_str()) {
                 continue;
@@ -256,6 +309,7 @@ pub async fn run_manga_cron(
                 source_manager,
                 &manga_id,
                 &status,
+                &mut observations,
             )
             .await
             {
@@ -265,6 +319,12 @@ pub async fn run_manga_cron(
                     err
                 );
             }
+        }
+        if let Err(error) = source_health
+            .record_batch(observations.into_observations())
+            .await
+        {
+            log::warn!("couldn't persist cron source health: {error:#}");
         }
     }
 

@@ -204,6 +204,8 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
     let default_downloads_folder_path = home_path.join("downloads");
     let settings_path = home_path.join("settings.json");
     let catalog_cache_path = home_path.join("source_catalogs");
+    let source_health_path = home_path.join("source_health.json");
+    let source_health = shared::source_health::SourceHealthStore::open(source_health_path);
 
     let database = Database::new(&database_path)
         .await
@@ -253,9 +255,17 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
         let sm_clone = source_manager.clone();
         let cs_clone = chapter_storage.clone();
         let settings = settings.clone();
+        let source_health = source_health.clone();
 
         tokio::spawn(async move {
-            shared::usecases::run_manga_cron(&db_clone, &cs_clone, &sm_clone, &settings).await;
+            shared::usecases::run_manga_cron(
+                &db_clone,
+                &cs_clone,
+                &sm_clone,
+                &settings,
+                &source_health,
+            )
+            .await;
         });
     }
 
@@ -266,6 +276,7 @@ pub async fn build_state(home_path: PathBuf) -> Result<State> {
         settings: Arc::new(Mutex::new(settings)),
         settings_path,
         catalog_cache_path,
+        source_health,
         job_state: Default::default(),
         cancel_token_store: Arc::new(Mutex::new(HashMap::new())),
         download_semaphore: Arc::new(Semaphore::new(3)),

@@ -1,10 +1,14 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use futures::lock::Mutex;
 use serde::Serialize;
 use shared::{
     database::Database,
     source_collection::SourceCollection,
+    source_health::{
+        SourceErrorCategory, SourceHealthBatch, SourceHealthObservation, SourceHealthStore,
+        SourceOperationClass, SourceOperationReport, SourceOperationSummary,
+    },
     source_manager::SourceManager,
     usecases::{self, get_manga_library},
 };
@@ -21,11 +25,9 @@ enum Status {
     Progressing {
         current: usize,
         total: usize,
-        errors: Vec<String>,
+        report: SourceOperationReport,
     },
-    Finished {
-        errors: Vec<String>,
-    },
+    Finished(SourceOperationReport),
     Errored(String),
 }
 
@@ -36,7 +38,7 @@ pub enum Progress {
     Refreshing {
         current: usize,
         total: usize,
-        errors: Vec<String>,
+        report: SourceOperationReport,
     },
 }
 
@@ -49,6 +51,7 @@ impl RefreshLibraryChaptersJob {
     pub fn spawn_new(
         source_manager: Arc<tokio::sync::Mutex<SourceManager>>,
         database: Arc<Database>,
+        source_health: SourceHealthStore,
     ) -> Self {
         let cancellation_token = CancellationToken::new();
         let cancellation_token_clone = cancellation_token.clone();
@@ -79,6 +82,8 @@ impl RefreshLibraryChaptersJob {
             };
 
             let total = mangas.len();
+            let mut summaries = BTreeMap::<String, SourceOperationSummary>::new();
+            let mut observations = SourceHealthBatch::default();
             for (i, manga) in mangas.into_iter().enumerate() {
                 if cancellation_token.is_cancelled() {
                     break;
@@ -91,7 +96,7 @@ impl RefreshLibraryChaptersJob {
                             *status_lock = Status::Progressing {
                                 current: i,
                                 total,
-                                errors: vec![],
+                                report: SourceOperationReport::default(),
                             };
                         }
                         Status::Progressing { current, .. } => {
@@ -102,12 +107,32 @@ impl RefreshLibraryChaptersJob {
                 }
 
                 let manga_id = manga.information.id;
+                let source_id = manga_id.source_id().value().clone();
+                summaries.entry(source_id.clone()).or_insert_with(|| {
+                    SourceOperationSummary::new(
+                        source_id.clone(),
+                        manga.source_information.name.clone(),
+                    )
+                });
                 let source = match source_manager.get_by_id(manga_id.source_id()) {
                     Some(s) => s,
-                    None => continue,
+                    None => {
+                        summaries
+                            .get_mut(&source_id)
+                            .expect("source summary exists")
+                            .record_skip(SourceErrorCategory::MissingSource);
+                        observations.push(SourceHealthObservation::failure_with_category(
+                            source_id,
+                            SourceOperationClass::RefreshChapters,
+                            manga_id.value(),
+                            SourceErrorCategory::MissingSource,
+                        ));
+                        update_report(&status, i + 1, total, &summaries).await;
+                        continue;
+                    }
                 };
 
-                if let Err(e) = usecases::refresh_manga_chapters(
+                match usecases::refresh_manga_chapters(
                     &cancellation_token,
                     &database,
                     source,
@@ -116,30 +141,48 @@ impl RefreshLibraryChaptersJob {
                 )
                 .await
                 {
-                    let mut status_lock = status.lock().await;
-                    if let Status::Progressing { errors, .. } = &mut *status_lock {
-                        errors.push(format!(
-                            "{}: {}",
-                            manga
-                                .information
-                                .title
-                                .clone()
-                                .unwrap_or_else(|| "Unknown".to_string()),
-                            e
+                    Ok(_) => {
+                        summaries
+                            .get_mut(&source_id)
+                            .expect("source summary exists")
+                            .record_success();
+                        observations.push(SourceHealthObservation::success(
+                            source_id,
+                            SourceOperationClass::RefreshChapters,
+                            manga_id.value(),
+                        ));
+                    }
+                    Err(error) => {
+                        log::warn!(
+                            "chapter refresh failed for source {}: {:#}",
+                            source_id,
+                            error.cause()
+                        );
+                        summaries
+                            .get_mut(&source_id)
+                            .expect("source summary exists")
+                            .record_failure(manga_id.value(), &error);
+                        observations.push(SourceHealthObservation::failure(
+                            source_id,
+                            SourceOperationClass::RefreshChapters,
+                            manga_id.value(),
+                            &error,
                         ));
                     }
                 }
+                update_report(&status, i + 1, total, &summaries).await;
             }
 
+            if let Err(error) = source_health
+                .record_batch(observations.into_observations())
+                .await
             {
-                let mut status_lock = status.lock().await;
-                if let Status::Progressing { errors, .. } = &*status_lock {
-                    *status_lock = Status::Finished {
-                        errors: errors.clone(),
-                    };
-                } else if !matches!(*status_lock, Status::Errored(_)) {
-                    *status_lock = Status::Finished { errors: vec![] };
-                }
+                log::warn!("couldn't persist chapter refresh health: {error:#}");
+            }
+            let report = report_from(&summaries);
+            let mut status_lock = status.lock().await;
+            if !matches!(*status_lock, Status::Errored(_)) {
+                *status_lock = Status::Finished(report);
             }
         });
 
@@ -152,7 +195,7 @@ impl RefreshLibraryChaptersJob {
 
 impl Job for RefreshLibraryChaptersJob {
     type Progress = Progress;
-    type Output = Vec<String>;
+    type Output = SourceOperationReport;
     type Error = ErrorResponse;
 
     async fn cancel(&self) -> Result<(), crate::AppError> {
@@ -169,17 +212,36 @@ impl Job for RefreshLibraryChaptersJob {
             Status::Progressing {
                 current,
                 total,
-                errors,
+                report,
             } => JobState::InProgress(Progress::Refreshing {
                 current: *current,
                 total: *total,
-                errors: errors.clone(),
+                report: report.clone(),
             }),
-            Status::Finished { errors } => JobState::Completed(errors.clone()),
+            Status::Finished(report) => JobState::Completed(report.clone()),
             Status::Errored(e) => {
                 let error = crate::AppError::from(anyhow::anyhow!(e.to_string()));
                 JobState::Errored(error.into())
             }
         }
     }
+}
+
+fn report_from(summaries: &BTreeMap<String, SourceOperationSummary>) -> SourceOperationReport {
+    SourceOperationReport {
+        summaries: summaries.values().cloned().collect(),
+    }
+}
+
+async fn update_report(
+    status: &Mutex<Status>,
+    current: usize,
+    total: usize,
+    summaries: &BTreeMap<String, SourceOperationSummary>,
+) {
+    *status.lock().await = Status::Progressing {
+        current,
+        total,
+        report: report_from(summaries),
+    };
 }

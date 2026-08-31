@@ -241,12 +241,13 @@ async fn create_refresh_library_chapters_job(
     StateExtractor(AppState {
         source_manager,
         database,
+        source_health,
         ..
     }): StateExtractor<AppState>,
     StateExtractor(State { job_registry }): StateExtractor<State>,
 ) -> Result<Json<Uuid>, AppError> {
     let id = Uuid::new_v4();
-    let job = RefreshLibraryChaptersJob::spawn_new(source_manager, database);
+    let job = RefreshLibraryChaptersJob::spawn_new(source_manager, database, source_health);
 
     job_registry
         .lock()
@@ -261,13 +262,19 @@ async fn create_refresh_library_details_job(
         source_manager,
         database,
         chapter_storage,
+        source_health,
         ..
     }): StateExtractor<AppState>,
     StateExtractor(State { job_registry }): StateExtractor<State>,
 ) -> Result<Json<Uuid>, AppError> {
     let id = Uuid::new_v4();
     let chapter_storage = chapter_storage.lock().await.clone();
-    let job = RefreshLibraryDetailsJob::spawn_new(source_manager, database, chapter_storage);
+    let job = RefreshLibraryDetailsJob::spawn_new(
+        source_manager,
+        database,
+        chapter_storage,
+        source_health,
+    );
 
     job_registry
         .lock()
