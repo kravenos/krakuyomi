@@ -33,6 +33,17 @@ local STATUS_LABELS = {
   search = _("Search"),
   refresh_chapters = _("Refresh chapters"),
   refresh_details = _("Refresh details"),
+  source_list = _("Source list"),
+  installed_package = _("Installed package"),
+  base_url = _("Base URL"),
+  stored_manga = _("Stored manga"),
+  stored_manga_lookup = _("Stored manga selection"),
+  passed = _("Passed"),
+  failed = _("Failed"),
+  skipped = _("Skipped"),
+  timed_out = _("Timed out"),
+  redirected = _("Redirected"),
+  changed = _("Identifier changed"),
 }
 
 local function label(value)
@@ -257,6 +268,53 @@ function InstalledSourcesListing:removeSource(source)
 end
 
 --- @private
+--- @param diagnosis SourceDiagnosis
+function InstalledSourcesListing:showDiagnosis(diagnosis)
+  local lines = {
+    _("Source") .. ": " .. diagnosis.source_name,
+    _("Stored manga tested") .. ": " .. diagnosis.tested_manga_count,
+    _("Possible identifier change") .. ": " ..
+        (diagnosis.probable_identifier_change and _("Yes") or _("No")),
+  }
+  for _, step in ipairs(diagnosis.steps) do
+    local heading = label(step.name)
+    if step.tested_item ~= nil then heading = heading .. " " .. step.tested_item end
+    local details = { heading .. ": " .. label(step.outcome), step.message }
+    if step.http_status ~= nil then
+      table.insert(details, "HTTP: " .. step.http_status)
+    end
+    if step.package_label ~= nil then
+      table.insert(details, _("Package") .. ": " .. step.package_label)
+    end
+    table.insert(details, _("Duration") .. ": " .. step.duration_ms .. " ms")
+    table.insert(lines, table.concat(details, "\n"))
+  end
+  table.insert(lines, _("Diagnosis did not change library entries, source packages, or manga identifiers."))
+
+  UIManager:show(TextViewer:new {
+    title = _("Source diagnosis"),
+    text = table.concat(lines, "\n\n"),
+  })
+end
+
+--- @private
+--- @param source SourceStatus
+function InstalledSourcesListing:diagnoseSource(source)
+  Trapper:wrap(function()
+    local response = LoadingDialog:showAndRun(
+      _("Checking source..."),
+      function() return Backend.diagnoseSource(source.source_id, true) end
+    )
+    if response.type == "ERROR" then
+      ErrorDialog:show(response.message)
+      return
+    end
+    self:showDiagnosis(response.body)
+    self:refreshStatuses()
+  end)
+end
+
+--- @private
 function InstalledSourcesListing:onContextMenuChoice(item)
   local source = item.source_status
   local dialog
@@ -275,6 +333,7 @@ function InstalledSourcesListing:onContextMenuChoice(item)
 
   action(_("Details"), function() self:showDetails(source) end)
   if source.load == "loaded" then
+    action(_("Diagnose"), function() self:diagnoseSource(source) end)
     action(_("Settings"), function() self:openSettings(source) end)
   end
   if source.selected_list_id ~= nil and source.available_version ~= nil and

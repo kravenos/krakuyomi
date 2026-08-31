@@ -205,6 +205,31 @@ impl Database {
             .collect())
     }
 
+    /// Returns at most `limit` stable library manga ids for one source.
+    /// This is used by manual diagnosis so it never tests an unbounded number
+    /// of stored entries.
+    pub async fn get_library_manga_ids_for_source(
+        &self,
+        source_id: &SourceId,
+        limit: usize,
+    ) -> Result<Vec<MangaId>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT manga_id FROM manga_library WHERE source_id = ? ORDER BY manga_id LIMIT ?",
+        )
+        .bind(source_id.value())
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .fetch_all(&*self.pool.read().await)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(manga_id,)| MangaId::new(source_id.clone(), manga_id))
+            .collect())
+    }
+
     pub async fn get_manga_library_and_status(&self) -> Result<Vec<(MangaId, PublishingStatus)>> {
         let rows = sqlx::query!(
             r#"
@@ -3833,5 +3858,43 @@ mod tests {
         assert_eq!(counts.get("first.source"), Some(&2));
         assert_eq!(counts.get("second.source"), Some(&1));
         assert_eq!(counts.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn diagnosis_manga_selection_is_stable_and_bounded() {
+        let directory = tempdir().unwrap();
+        let database = Database::new(&directory.path().join("database.sqlite"))
+            .await
+            .unwrap();
+        let source_id = SourceId::new("fixture.source".to_owned());
+        for value in ["four", "one", "three", "two"] {
+            database
+                .add_manga_to_library(MangaId::new(source_id.clone(), value.to_owned()))
+                .await
+                .unwrap();
+        }
+        database
+            .add_manga_to_library(MangaId::from_strings(
+                "other.source".to_owned(),
+                "zero".to_owned(),
+            ))
+            .await
+            .unwrap();
+
+        let selected = database
+            .get_library_manga_ids_for_source(&source_id, 3)
+            .await
+            .unwrap();
+
+        assert_eq!(selected.len(), 3);
+        assert_eq!(selected[0].value(), "four");
+        assert_eq!(selected[1].value(), "one");
+        assert_eq!(selected[2].value(), "three");
+        assert!(selected.iter().all(|id| id.source_id() == &source_id));
+        assert!(database
+            .get_library_manga_ids_for_source(&source_id, 0)
+            .await
+            .unwrap()
+            .is_empty());
     }
 }

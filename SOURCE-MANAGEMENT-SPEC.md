@@ -181,6 +181,12 @@ stored manga ids. Every step has a timeout and reports a structured outcome.
 Redirects are evidence only. Diagnosis may report a probable identifier change
 but never rewrites ids or files.
 
+The diagnosis response never contains stored manga ids, redirect targets,
+credential-bearing URLs, or local paths. It reports only safe categories,
+bounded messages, HTTP status numbers, package filenames, durations, and an
+ordinal for each of at most three manga checks. Source-list refresh may replace
+only its disposable cache; diagnosis never writes library rows or identifiers.
+
 Canonical-id migration remains an expert offline recovery capability. It is not
 part of this rebuild because no general resolver and collision-safe migration
 contract exists. Any future implementation needs a separate specification,
