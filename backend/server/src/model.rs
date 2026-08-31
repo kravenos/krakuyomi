@@ -66,8 +66,8 @@ impl From<DomainSourceInformation> for SourceInformation {
             source_of_source: value.source_of_source,
             missing: value.missing,
             list_id: value.catalog_list_id,
-            provider_url: value.provider_url.map(|url| url.to_string()),
-            resolved_provider_url: value.resolved_provider_url.map(|url| url.to_string()),
+            provider_url: value.provider_url.map(safe_url_for_display),
+            resolved_provider_url: value.resolved_provider_url.map(safe_url_for_display),
             catalog_fetched_at: None,
             catalog_last_fetch_error: None,
             installed_version: value.installed_version,
@@ -86,14 +86,25 @@ impl From<shared::source_catalog::CatalogCandidate> for SourceInformation {
             source_of_source: value.source.source_of_source,
             missing: false,
             list_id: Some(value.list_id),
-            provider_url: Some(value.provider_url.to_string()),
-            resolved_provider_url: Some(value.resolved_provider_url.to_string()),
+            provider_url: Some(safe_url_for_display(value.provider_url)),
+            resolved_provider_url: Some(safe_url_for_display(value.resolved_provider_url)),
             catalog_fetched_at: Some(value.fetched_at.to_rfc3339()),
-            catalog_last_fetch_error: value.last_fetch_error,
+            catalog_last_fetch_error: value.last_fetch_error.map(|_| {
+                "The source list could not be refreshed; cached data is being used.".to_owned()
+            }),
             installed_version: None,
             selected: value.selected,
         }
     }
+}
+
+pub(crate) fn safe_url_for_display(mut url: url::Url) -> String {
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    if url.query().is_some() {
+        url.set_query(Some("redacted"));
+    }
+    url.to_string()
 }
 
 #[derive(Serialize)]
@@ -173,5 +184,27 @@ impl From<DomainChapter> for Chapter {
             lang: chapter_information.lang,
             on_tmpfs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn displayed_provider_url_removes_credentials_and_query_values() {
+        let url = url::Url::parse(
+            "https://reader:secret@example.com/catalog.json?token=private&branch=main#sources",
+        )
+        .unwrap();
+
+        let displayed = safe_url_for_display(url);
+
+        assert_eq!(
+            displayed,
+            "https://example.com/catalog.json?redacted#sources"
+        );
+        assert!(!displayed.contains("secret"));
+        assert!(!displayed.contains("private"));
     }
 }

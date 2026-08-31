@@ -27,6 +27,7 @@ pub enum AppError {
     NotFound,
     Conflict(String),
     DownloadAllChaptersProgressNotFound,
+    SourceStatus(anyhow::Error),
     SourceOperation(SourceOperationError),
     NetworkFailure(anyhow::Error),
     Other(anyhow::Error),
@@ -66,6 +67,7 @@ impl From<&AppError> for StatusCode {
             | AppError::NotFound
             | AppError::DownloadAllChaptersProgressNotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::SourceStatus(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::SourceOperation(error)
                 if error.category() == shared::source_health::SourceErrorCategory::Timeout =>
             {
@@ -86,6 +88,7 @@ impl From<&AppError> for ErrorResponse {
             AppError::DownloadAllChaptersProgressNotFound => {
                 "No download is in progress.".to_string()
             }
+            AppError::SourceStatus(_) => "Source status could not be loaded.".to_owned(),
             AppError::SourceOperation(error) => error.safe_message().to_owned(),
             AppError::NetworkFailure(e) => {
                 eprintln!("Networke error: {:?}", e);
@@ -105,6 +108,7 @@ impl From<&AppError> for ErrorResponse {
         let (code, retryable) = match value {
             AppError::SourceNotFound => (Some("missing_source".to_owned()), false),
             AppError::Conflict(_) => (Some("stale_uninstall_preview".to_owned()), false),
+            AppError::SourceStatus(_) => (Some("source_status_unavailable".to_owned()), true),
             AppError::SourceOperation(error) => (
                 Some(error.category().code().to_owned()),
                 error.category().retryable(),
@@ -134,6 +138,7 @@ impl IntoResponse for AppError {
 
         let inner_exception = match self {
             Self::NetworkFailure(ref e) => Some(e),
+            Self::SourceStatus(ref e) => Some(e),
             Self::SourceOperation(ref error) => Some(error.cause()),
             Self::Other(ref e) => Some(e),
             _ => None,
@@ -202,5 +207,18 @@ mod tests {
         assert!(!response.message.contains("private"));
         assert!(!response.message.contains("secret"));
         assert!(response.retryable);
+    }
+
+    #[test]
+    fn source_status_error_does_not_expose_private_database_details() {
+        let response = ErrorResponse::from(&AppError::SourceStatus(anyhow::anyhow!(
+            "database at /private/path failed with token=secret"
+        )));
+
+        assert_eq!(response.message, "Source status could not be loaded.");
+        assert_eq!(response.code.as_deref(), Some("source_status_unavailable"));
+        assert!(response.retryable);
+        assert!(!response.message.contains("private"));
+        assert!(!response.message.contains("secret"));
     }
 }

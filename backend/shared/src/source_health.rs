@@ -319,6 +319,7 @@ pub struct SourceHealthSummary {
     pub runtime: SourceRuntimeHealth,
     pub sample_count: usize,
     pub latest_at: Option<DateTime<Utc>>,
+    pub latest_operation: Option<SourceOperationClass>,
     pub latest_category: Option<SourceErrorCategory>,
     pub latest_message: Option<String>,
 }
@@ -461,6 +462,7 @@ fn summarize(
         runtime,
         sample_count: observations.len(),
         latest_at: latest.map(|observation| observation.timestamp),
+        latest_operation: latest.map(|observation| observation.operation),
         latest_category: latest.and_then(|observation| observation.category),
         latest_message: latest.and_then(|observation| observation.message.clone()),
     }
@@ -637,10 +639,9 @@ mod tests {
             now + Duration::seconds(1),
         ));
 
-        assert_eq!(
-            summarize("source", &observations, now + Duration::seconds(1)).runtime,
-            SourceRuntimeHealth::Healthy
-        );
+        let summary = summarize("source", &observations, now + Duration::seconds(1));
+        assert_eq!(summary.runtime, SourceRuntimeHealth::Healthy);
+        assert_eq!(summary.latest_operation, Some(SourceOperationClass::Search));
     }
 
     #[test]
