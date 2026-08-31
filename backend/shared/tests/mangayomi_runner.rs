@@ -565,7 +565,13 @@ fn install(
     code: &str,
     metadata: &str,
 ) -> SourceId {
-    let source_id = SourceId::new("638504049".to_string());
+    let metadata_value: serde_json::Value =
+        serde_json::from_str(metadata).expect("parse extension metadata");
+    let source_id = SourceId::new(match &metadata_value["id"] {
+        serde_json::Value::String(id) => id.clone(),
+        serde_json::Value::Number(id) => id.to_string(),
+        _ => panic!("extension metadata must contain a string or numeric id"),
+    });
     lock_manager(manager)
         .install_mangayomi_source(&source_id, code, metadata, "MangaYomi".to_string(), manager)
         .unwrap();
