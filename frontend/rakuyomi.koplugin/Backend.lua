@@ -724,6 +724,21 @@ function Backend.listSourceStatuses()
   })
 end
 
+--- @class SourceDiagnosisStep: { name: string, outcome: string, message: string, duration_ms: integer, http_status: integer|nil, package_label: string|nil, package_kind: string|nil, tested_item: integer|nil, identifier_match: boolean|nil }
+--- @class SourceDiagnosis: { source_id: string, source_name: string, started_at: string, completed_at: string, tested_manga_count: integer, probable_identifier_change: boolean, steps: SourceDiagnosisStep[] }
+
+--- Runs one bounded manual diagnosis without changing library rows or identifiers.
+--- @param source_id string
+--- @param refresh_catalog boolean
+--- @return SuccessfulResponse<SourceDiagnosis>|ErrorResponse
+function Backend.diagnoseSource(source_id, refresh_catalog)
+  return Backend.requestJson({
+    path = "/sources/" .. source_id .. "/diagnoses",
+    method = "POST",
+    body = { refresh_catalog = refresh_catalog },
+  })
+end
+
 --- Lists information about sources available via our source lists.
 --- @return SuccessfulResponse<SourceInformation[]>|ErrorResponse
 function Backend.listAvailableSources()

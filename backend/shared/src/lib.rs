@@ -13,6 +13,7 @@ pub mod settings;
 pub mod source;
 pub mod source_catalog;
 pub mod source_collection;
+pub mod source_diagnosis;
 pub mod source_health;
 pub mod source_manager;
 pub mod tls;
