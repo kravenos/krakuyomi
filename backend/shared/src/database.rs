@@ -191,6 +191,20 @@ impl Database {
         Ok(count.max(0) as usize)
     }
 
+    /// Counts library manga by source in one grouped query.
+    pub async fn count_library_mangas_by_source(&self) -> Result<HashMap<String, usize>> {
+        let counts = sqlx::query_as::<_, (String, i64)>(
+            "SELECT source_id, COUNT(*) FROM manga_library GROUP BY source_id",
+        )
+        .fetch_all(&*self.pool.read().await)
+        .await?;
+
+        Ok(counts
+            .into_iter()
+            .map(|(source_id, count)| (source_id, count.max(0) as usize))
+            .collect())
+    }
+
     pub async fn get_manga_library_and_status(&self) -> Result<Vec<(MangaId, PublishingStatus)>> {
         let rows = sqlx::query!(
             r#"
@@ -3798,5 +3812,26 @@ mod tests {
 
         assert_eq!(count, 3);
         assert_eq!(database.get_manga_library().await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn library_counts_are_grouped_by_source() {
+        let directory = tempdir().unwrap();
+        let database = Database::new(&directory.path().join("database.sqlite"))
+            .await
+            .unwrap();
+        for manga_id in [
+            MangaId::from_strings("first.source".to_owned(), "one".to_owned()),
+            MangaId::from_strings("first.source".to_owned(), "two".to_owned()),
+            MangaId::from_strings("second.source".to_owned(), "three".to_owned()),
+        ] {
+            database.add_manga_to_library(manga_id).await.unwrap();
+        }
+
+        let counts = database.count_library_mangas_by_source().await.unwrap();
+
+        assert_eq!(counts.get("first.source"), Some(&2));
+        assert_eq!(counts.get("second.source"), Some(&1));
+        assert_eq!(counts.len(), 2);
     }
 }

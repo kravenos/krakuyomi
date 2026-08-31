@@ -249,6 +249,36 @@ end
 --- @field installed_version string|number|nil Version recorded when the installed package was selected.
 --- @field selected boolean Whether deterministic selection prefers this candidate.
 
+--- Complete source-management state assembled without probing source runtimes.
+--- @class SourceStatus
+--- @field source_id string Stable source identifier.
+--- @field name string Source name, or a clear missing-source label.
+--- @field languages string[] Languages published by the installed source or selected candidate.
+--- @field library_manga_count number Number of preserved library entries using this source.
+--- @field installed_version string|number|nil Installed version recorded on disk.
+--- @field available_version string|number|nil Version from the selected source-list candidate.
+--- @field package_label string|nil Safe package file name without a local path.
+--- @field package_kind string|nil Package format.
+--- @field presence 'installed'|'missing'
+--- @field load 'loaded'|'load_failed'|'not_applicable'
+--- @field catalog 'available'|'unavailable'|'unknown'
+--- @field freshness 'current'|'update_available'|'unknown'
+--- @field runtime 'healthy'|'failing'|'unknown'
+--- @field compatibility 'compatible'|'incompatible'|'unknown'
+--- @field installed_list_id string|nil Exact source list used for the installed package.
+--- @field selected_list_id string|nil Exact source list selected for a safe install or update.
+--- @field installed_provider_url string|nil Safely displayed installed provider URL.
+--- @field available_provider_url string|nil Safely displayed selected provider URL.
+--- @field catalog_fetched_at string|nil Catalog fetch time.
+--- @field catalog_age_seconds number|nil Age of the cached catalog.
+--- @field catalog_last_fetch_error string|nil Safe warning when cached data follows a failed refresh.
+--- @field health_sample_count number Number of bounded runtime samples retained.
+--- @field latest_operation string|nil Most recent recorded operation.
+--- @field latest_operation_at string|nil Time of the latest recorded operation.
+--- @field latest_category string|nil Stable category for the latest operation failure.
+--- @field latest_message string|nil Safe message for the latest operation.
+--- @field error string|nil Safe package or runtime error.
+
 --- @class Manga
 --- @field id string The ID of the manga.
 --- @field source SourceInformation The source information for this manga.
@@ -675,6 +705,14 @@ end
 function Backend.listInstalledSources()
   return Backend.requestJson({
     path = "/installed-sources",
+  })
+end
+
+--- Lists installed, failed, and library-referenced sources with their status.
+--- @return SuccessfulResponse<SourceStatus[]>|ErrorResponse
+function Backend.listSourceStatuses()
+  return Backend.requestJson({
+    path = "/sources/status",
   })
 end
 

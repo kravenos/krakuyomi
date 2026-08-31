@@ -542,6 +542,16 @@ fn compare_versions(source_type: SourceListType, left: &Value, right: &Value) ->
     }
 }
 
+/// Returns whether a compatible catalog version is newer than an installed
+/// version using the same format-specific rules as candidate selection.
+pub fn is_newer_source_version(
+    source_type: SourceListType,
+    available: &Value,
+    installed: &Value,
+) -> bool {
+    compare_versions(source_type, available, installed) == Ordering::Greater
+}
+
 fn compare_dotted_versions(left: &str, right: &str) -> Ordering {
     let parse = |version: &str| {
         version
@@ -722,6 +732,25 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn newer_version_check_uses_each_source_formats_rules() {
+        assert!(is_newer_source_version(
+            SourceListType::Aidoku,
+            &serde_json::json!(11),
+            &serde_json::json!(10),
+        ));
+        assert!(is_newer_source_version(
+            SourceListType::LnReader,
+            &serde_json::json!("1.10.0"),
+            &serde_json::json!("1.9.0"),
+        ));
+        assert!(!is_newer_source_version(
+            SourceListType::LnReader,
+            &serde_json::json!("1.9.0"),
+            &serde_json::json!("1.10.0"),
+        ));
     }
 
     #[test]
