@@ -11,6 +11,7 @@ use crate::{
 };
 use futures::{stream, StreamExt};
 use log::warn;
+use std::collections::HashSet;
 use tokio::time::timeout;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -27,6 +28,16 @@ pub struct SearchError {
     pub message: String,
 }
 
+/// One source's explicit outcome for a search page, including zero results.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct SourceSearchOutcome {
+    pub source_id: String,
+    pub source_name: String,
+    pub result_count: usize,
+    pub has_next_page: bool,
+    pub error: Option<SearchError>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn search_mangas(
     source_collection: &impl SourceCollection,
@@ -35,11 +46,11 @@ pub async fn search_mangas(
     settings: &Settings,
     cancellation_token: CancellationToken,
     query: String,
-    exclude: &Option<Vec<String>>,
+    included_source_ids: &Option<HashSet<String>>,
     page: i32,
     seconds: u64,
     source_health: &SourceHealthStore,
-) -> Result<(Vec<Manga>, Vec<SearchError>, bool), Error> {
+) -> Result<(Vec<Manga>, Vec<SourceSearchOutcome>, bool), Error> {
     // FIXME this looks awful
     let query = &query;
 
@@ -50,6 +61,7 @@ pub async fn search_mangas(
     let sources = source_collection
         .sources()
         .into_iter()
+        .filter(|source| source_is_included(included_source_ids, &source.manifest().info.id))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -65,23 +77,6 @@ pub async fn search_mangas(
             let chapter_storage = chapter_storage.clone();
 
             async move {
-                if exclude
-                    .as_ref()
-                    .map(|exclude| exclude.contains(&source.manifest().info.id))
-                    .unwrap_or(false)
-                {
-                    let source_info = source.manifest().into();
-                    return (
-                        SourceMangaSearchResults {
-                            source_information: source_info,
-                            mangas: vec![],
-                        },
-                        None,
-                        false,
-                        None,
-                    );
-                }
-
                 let token = cancellation_token.child_token();
                 let item_key = query.clone();
 
@@ -215,15 +210,12 @@ pub async fn search_mangas(
         .collect::<Vec<_>>()
         .await;
 
-    let mut errors: Vec<SearchError> = vec![];
+    let mut outcomes = Vec::new();
     let mut has_next_page = false;
     let mut observations = Vec::new();
     let mut mangas: Vec<_> = source_results
         .into_iter()
         .flat_map(|(results, error, has_next, observation)| {
-            if let Some(error) = error {
-                errors.push(error);
-            }
             if let Some(observation) = observation {
                 observations.push(observation);
             }
@@ -235,6 +227,14 @@ pub async fn search_mangas(
                 mangas,
                 source_information,
             } = results;
+
+            outcomes.push(SourceSearchOutcome {
+                source_id: source_information.id.value().clone(),
+                source_name: source_information.name.clone(),
+                result_count: mangas.len(),
+                has_next_page: has_next,
+                error,
+            });
 
             mangas.into_iter().map(move |(manga, option_tuple)| {
                 let (unread_count, last_read, in_library) =
@@ -258,17 +258,44 @@ pub async fn search_mangas(
     }
 
     mangas.sort_by_cached_key(|manga| {
-        manga
-            .information
-            .title
-            .clone()
-            .unwrap_or_default()
-            .nfkc()
-            .flat_map(char::to_lowercase)
-            .collect::<String>()
+        (
+            manga
+                .source_information
+                .name
+                .as_str()
+                .nfkc()
+                .flat_map(char::to_lowercase)
+                .collect::<String>(),
+            manga.source_information.id.value().clone(),
+            manga
+                .information
+                .title
+                .clone()
+                .unwrap_or_default()
+                .nfkc()
+                .flat_map(char::to_lowercase)
+                .collect::<String>(),
+        )
+    });
+    outcomes.sort_by_cached_key(|outcome| {
+        (
+            outcome
+                .source_name
+                .as_str()
+                .nfkc()
+                .flat_map(char::to_lowercase)
+                .collect::<String>(),
+            outcome.source_id.clone(),
+        )
     });
 
-    Ok((mangas, errors, has_next_page))
+    Ok((mangas, outcomes, has_next_page))
+}
+
+fn source_is_included(included_source_ids: &Option<HashSet<String>>, source_id: &str) -> bool {
+    included_source_ids
+        .as_ref()
+        .is_none_or(|included| included.contains(source_id))
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -282,4 +309,27 @@ struct SourceMangaSearchResults {
     source_information: SourceInformation,
     /// mangas: Vec<Manga>, $0 is unread chapters count, $1 is last read time
     mangas: Vec<ResultManga>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn absent_included_set_searches_every_source() {
+        assert!(source_is_included(&None, "source.one"));
+    }
+
+    #[test]
+    fn explicit_included_set_searches_only_exact_ids() {
+        let included = Some(HashSet::from(["source.one".to_owned()]));
+
+        assert!(source_is_included(&included, "source.one"));
+        assert!(!source_is_included(&included, "source.two"));
+    }
+
+    #[test]
+    fn explicit_empty_included_set_searches_nothing() {
+        assert!(!source_is_included(&Some(HashSet::new()), "source.one"));
+    }
 }

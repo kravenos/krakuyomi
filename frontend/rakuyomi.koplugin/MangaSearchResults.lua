@@ -23,6 +23,7 @@ local format_languages = require("utils/formatLanguages")
 
 --- @class MangaSearchResults: { [any]: any }
 --- @field results Manga[]
+--- @field source_outcomes SourceSearchOutcome[]
 --- @field on_return_callback fun(): nil
 local MangaSearchResults = MenuCustom:extend {
   name = "manga_search_results",
@@ -37,13 +38,15 @@ local MangaSearchResults = MenuCustom:extend {
   on_return_callback = nil,
   -- pagination
   search_text = nil,
-  exclude = nil,
+  included_source_ids = nil,
+  source_outcomes = nil,
   result_page = 1,
   has_next_page = false,
 }
 
 function MangaSearchResults:init()
   local results = self.results or {}
+  self.source_outcomes = self.source_outcomes or {}
   local settings_response = Backend.getSettings()
   self.search_view_mode = (settings_response.type ~= 'ERROR' and settings_response.body.search_view_mode) or "base"
 
@@ -104,8 +107,9 @@ end
 --- @private
 function MangaSearchResults:updateItems()
   self.item_table = self:generateItemTableFromSearchResults(self.results)
+  local has_search_items = #self.results > 0 or self.has_next_page
 
-  if #self.item_table > 0 then
+  if has_search_items then
     self.multilines_show_more_text = false
     self.single_line = true
     self.items_per_page = nil
@@ -115,7 +119,7 @@ function MangaSearchResults:updateItems()
     self.items_per_page = 1
   end
 
-  local mode = self.search_view_mode
+  local mode = has_search_items and self.search_view_mode or "base"
   local MenuItemChoice = MenuItemCover
   if mode == "grid" then
     MenuItemChoice = MenuItemGrid
@@ -137,7 +141,7 @@ end
 --- @return table
 function MangaSearchResults:generateItemTableFromSearchResults(results)
   local item_table = {}
-  local is_cover = self.search_view_mode == "cover"
+  local is_grid = self.search_view_mode == "grid"
 
   for _, manga in ipairs(results) do
     local mandatory_parts = {}
@@ -164,9 +168,10 @@ function MangaSearchResults:generateItemTableFromSearchResults(results)
     table.insert(item_table, {
       manga = manga,
       text = manga.title,
-      post_text = is_cover and mandatory or source_text,
+      post_text = source_text,
+      grid_source_text = is_grid and manga.source.name or nil,
       manga_cover = self.search_view_mode ~= "base" and manga.manga_cover or nil,
-      mandatory = not is_cover and mandatory or nil,
+      mandatory = mandatory,
     })
   end
 
@@ -182,6 +187,14 @@ function MangaSearchResults:generateItemTableFromSearchResults(results)
     })
   end
 
+  if #item_table == 0 then
+    table.insert(item_table, {
+      text = _("No manga results found for the selected sources."),
+      dim = true,
+      select_enabled = false,
+    })
+  end
+
   return item_table
 end
 
@@ -192,41 +205,58 @@ function MangaSearchResults:onReturn()
   self:onClose()
 end
 
---- @param errors SearchError[]
-local function formatSearchErrors(errors)
-  if not errors or #errors == 0 then
-    return _("No errors")
-  end
-
-  local max_items = 5
+--- @param outcomes SourceSearchOutcome[]
+--- @return string|nil
+local function formatSearchOutcomes(outcomes)
   local lines = {}
   local SourceError = require("SourceError")
+  local hidden_count = 0
+  local max_lines = 10
 
-  for i = 1, math.min(#errors, max_items) do
-    local err = errors[i]
-    table.insert(lines, string.format(
-      "%s | %s",
-      err.source_id,
-      SourceError.message(err.category, err.message)
-    ))
+  for _, outcome in ipairs(outcomes or {}) do
+    if outcome.error then
+      if #lines < max_lines then
+        table.insert(lines, outcome.source_name .. ": " ..
+            SourceError.message(outcome.error.category, outcome.error.message))
+      else
+        hidden_count = hidden_count + 1
+      end
+    elseif outcome.result_count == 0 then
+      if #lines < max_lines then
+        table.insert(lines, outcome.source_name .. ": " .. _("No results"))
+      else
+        hidden_count = hidden_count + 1
+      end
+    end
   end
 
-  if #errors > max_items then
-    table.insert(lines, string.format(_("… and %d more errors"), #errors - max_items))
+  if hidden_count > 0 then
+    table.insert(lines, string.format(_("… and %d more sources"), hidden_count))
   end
-
-  return table.concat(lines, "\n")
+  return #lines > 0 and table.concat(lines, "\n") or nil
 end
+
+--- @param results Manga[]
+local function sortResultsBySource(results)
+  table.sort(results, function(left, right)
+    local left_source = (left.source.name or ""):lower()
+    local right_source = (right.source.name or ""):lower()
+    if left_source ~= right_source then return left_source < right_source end
+    if left.source.id ~= right.source.id then return left.source.id < right.source.id end
+    return (left.title or ""):lower() < (right.title or ""):lower()
+  end)
+end
+
 --- Searches for mangas and shows the results.
 --- @param search_text string The text to be searched for.
---- @param exclude string[]
+--- @param included_source_ids string[] Exact source ids to search.
 --- @param onReturnCallback any
 --- @return boolean
-function MangaSearchResults:searchAndShow(search_text, exclude, onReturnCallback)
+function MangaSearchResults:searchAndShow(search_text, included_source_ids, onReturnCallback)
   local cancel_id = Backend.createCancelId()
   local response, cancelled = LoadingDialog:showAndRun(
     _("Searching for") .. " \"" .. search_text .. "\"",
-    function() return Backend.searchMangas(cancel_id, search_text, exclude) end,
+    function() return Backend.searchMangas(cancel_id, search_text, included_source_ids) end,
     function()
       Backend.cancel(cancel_id)
       local cancelledMessage = InfoMessage:new {
@@ -246,13 +276,16 @@ function MangaSearchResults:searchAndShow(search_text, exclude, onReturnCallback
     return false
   end
 
-  local results = response.body[1]
-  local has_next_page = response.body[3] == true
+  local results = response.body.results
+  local source_outcomes = response.body.sources
+  local has_next_page = response.body.has_next_page == true
+  sortResultsBySource(results)
 
   local ui = MangaSearchResults:new {
     results = results,
+    source_outcomes = source_outcomes,
     search_text = search_text,
-    exclude = exclude,
+    included_source_ids = included_source_ids,
     result_page = 1,
     has_next_page = has_next_page,
     on_return_callback = onReturnCallback,
@@ -261,9 +294,10 @@ function MangaSearchResults:searchAndShow(search_text, exclude, onReturnCallback
   }
   ui.on_return_callback = onReturnCallback
   UIManager:show(ui)
-  if #response.body[2] > 0 then
+  local outcome_message = formatSearchOutcomes(source_outcomes)
+  if outcome_message then
     UIManager:show(InfoMessage:new {
-      text = formatSearchErrors(response.body[2])
+      text = outcome_message
     })
   end
 
@@ -284,9 +318,18 @@ function MangaSearchResults:loadNextPage()
 
     local cancel_id = Backend.createCancelId()
     local next_page = self.result_page + 1
+    local next_source_ids = {}
+    for _, outcome in ipairs(self.source_outcomes) do
+      if outcome.has_next_page then table.insert(next_source_ids, outcome.source_id) end
+    end
+    if #next_source_ids == 0 then
+      self.has_next_page = false
+      self:updateItems()
+      return
+    end
     local response, cancelled = LoadingDialog:showAndRun(
       _("Searching for") .. " \"" .. search_text .. "\"",
-      function() return Backend.searchMangas(cancel_id, search_text, self.exclude, next_page) end,
+      function() return Backend.searchMangas(cancel_id, search_text, next_source_ids, next_page) end,
       function()
         Backend.cancel(cancel_id)
 
@@ -306,18 +349,21 @@ function MangaSearchResults:loadNextPage()
       return
     end
 
-    local results = response.body[1]
-    self.has_next_page = response.body[3] == true
+    local results = response.body.results
+    self.source_outcomes = response.body.sources
+    self.has_next_page = response.body.has_next_page == true
 
     for _, manga in ipairs(results) do
       table.insert(self.results, manga)
     end
+    sortResultsBySource(self.results)
     self.result_page = next_page
     self:updateItems()
 
-    if #response.body[2] > 0 then
+    local outcome_message = formatSearchOutcomes(self.source_outcomes)
+    if outcome_message then
       UIManager:show(InfoMessage:new {
-        text = formatSearchErrors(response.body[2])
+        text = outcome_message
       })
     end
 
@@ -339,8 +385,9 @@ function MangaSearchResults:onPrimaryMenuChoice(item)
     local onReturnCallback = function()
       local ui = MangaSearchResults:new {
         results = self.results,
+        source_outcomes = self.source_outcomes,
         search_text = self.search_text,
-        exclude = self.exclude,
+        included_source_ids = self.included_source_ids,
         result_page = self.result_page,
         has_next_page = self.has_next_page,
         on_return_callback = self.on_return_callback,
@@ -456,8 +503,9 @@ function MangaSearchResults:onContextMenuChoice(item)
             local onReturnCallback = function()
               local ui = MangaSearchResults:new {
                 results = self.results,
+                source_outcomes = self.source_outcomes,
                 search_text = self.search_text,
-                exclude = self.exclude,
+                included_source_ids = self.included_source_ids,
                 result_page = self.result_page,
                 has_next_page = self.has_next_page,
                 on_return_callback = self.on_return_callback,

@@ -61,6 +61,31 @@ local formatBytes = require("utils/formatBytes")
 
 local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
 local SMALL_FONT_FACE = Font:getFace("smallffont")
+local INCLUDED_SEARCH_SOURCES_KEY = "rakuyomi_search_included_source_ids"
+local LEGACY_EXCLUDED_SEARCH_SOURCES_KEY = "exlucde_source_ids_select_search"
+
+--- Reads the direct included-source selection. The old exclusion setting is
+--- converted only when the new setting has never been written.
+--- @param installed_sources SourceInformation[]
+--- @return string[]
+local function getIncludedSearchSourceIds(installed_sources)
+  local included = G_reader_settings:readSetting(INCLUDED_SEARCH_SOURCES_KEY)
+  if included ~= nil then return included end
+
+  local excluded = {}
+  for _, source_id in ipairs(G_reader_settings:readSetting(LEGACY_EXCLUDED_SEARCH_SOURCES_KEY, {})) do
+    excluded[source_id] = true
+  end
+
+  included = {}
+  for _, source in ipairs(installed_sources) do
+    if not excluded[source.id] then table.insert(included, source.id) end
+  end
+  table.sort(included)
+  G_reader_settings:saveSetting(INCLUDED_SEARCH_SOURCES_KEY, included)
+  return included
+end
+
 local LibraryView = MenuCustom:extend {
   name = "library_view",
   is_enable_shortcut = false,
@@ -1168,6 +1193,14 @@ end
 
 --- @private
 function LibraryView:openSearchMangasDialog()
+  local sources_response = Backend.listInstalledSources()
+  if sources_response.type == "ERROR" then
+    ErrorDialog:show(sources_response.message)
+    return
+  end
+  local installed_sources = sources_response.body
+  getIncludedSearchSourceIds(installed_sources)
+
   local dialog
   dialog = InputDialog:new {
     title = _("Manga search..."),
@@ -1177,30 +1210,24 @@ function LibraryView:openSearchMangasDialog()
       {
         {
           text = _("Search"),
-          is_enter_default = false,
-          callback = function()
-            UIManager:close(dialog)
-
-            self:searchMangas(dialog:getInputText())
-          end,
-        },
-        {
-          text = _("Search") .. "*",
           is_enter_default = true,
           callback = function()
+            local included = G_reader_settings:readSetting(INCLUDED_SEARCH_SOURCES_KEY, {})
+            if #included == 0 then
+              ErrorDialog:show(_("Select at least one source to search."))
+              return
+            end
+            local search_text = dialog:getInputText()
             UIManager:close(dialog)
-
-            self:searchMangas(dialog:getInputText(), G_reader_settings:readSetting(
-              "exlucde_source_ids_select_search", {}
-            ))
+            self:searchMangas(search_text, included)
           end,
         },
       },
       {
         {
-          text = _("Settings"),
+          text = _("Sources"),
           callback = function()
-            self:openSettingsSearchDialog()
+            self:openSettingsSearchDialog(installed_sources)
           end
         },
         {
@@ -1219,18 +1246,20 @@ function LibraryView:openSearchMangasDialog()
 end
 
 --- @private
-function LibraryView:openSettingsSearchDialog()
-  local response = Backend.listInstalledSources()
-  if response.type == 'ERROR' then
-    ErrorDialog:show(response.message)
-
-    return
+--- @param installed_sources SourceInformation[]|nil
+function LibraryView:openSettingsSearchDialog(installed_sources)
+  if installed_sources == nil then
+    local response = Backend.listInstalledSources()
+    if response.type == "ERROR" then
+      ErrorDialog:show(response.message)
+      return
+    end
+    installed_sources = response.body
   end
 
-  local key = "exlucde_source_ids_select_search"
   local options = {}
   local format_languages = require("utils/formatLanguages")
-  for _, source_information in ipairs(response.body) do
+  for _, source_information in ipairs(installed_sources) do
     local name = source_information.name
     local languages_text = format_languages(source_information.languages)
     if languages_text then
@@ -1244,11 +1273,12 @@ function LibraryView:openSettingsSearchDialog()
 
   ---@diagnostic disable-next-line: redundant-parameter
   local dialog = CheckboxDialog:new {
-    title = _("Exclude source search for") .. " \"" .. _("Search") .. "*\"",
-    current = G_reader_settings:readSetting(key, {}),
+    title = _("Sources included in search"),
+    current = getIncludedSearchSourceIds(installed_sources),
     options = options,
     update_callback = function(value)
-      G_reader_settings:saveSetting(key, value)
+      table.sort(value)
+      G_reader_settings:saveSetting(INCLUDED_SEARCH_SOURCES_KEY, value)
     end
   }
 
@@ -1473,13 +1503,13 @@ function LibraryView:openCleanerDialog()
 end
 
 --- @private
-function LibraryView:searchMangas(search_text, exclude)
+function LibraryView:searchMangas(search_text, included_source_ids)
   Trapper:wrap(function()
     local onReturnCallback = function()
       self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
     end
 
-    if MangaSearchResults:searchAndShow(search_text, exclude, onReturnCallback) then
+    if MangaSearchResults:searchAndShow(search_text, included_source_ids, onReturnCallback) then
       self:onClose(true)
     end
   end)
