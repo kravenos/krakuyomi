@@ -1,12 +1,14 @@
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
+use tempfile::{Builder, TempDir};
 
 use crate::{
     model::SourceId,
@@ -85,6 +87,206 @@ pub struct SourceManager {
     pub source_packages: Vec<SourcePackageStatus>,
 }
 
+/// Keeps the currently installed package recoverable while a staged
+/// replacement is validated and published on the same filesystem.
+struct SourceInstallTransaction {
+    sources_folder: PathBuf,
+    temporary: TempDir,
+    targets: Vec<PathBuf>,
+    backed_up: Vec<PathBuf>,
+    installed: Vec<PathBuf>,
+    rollback_required: bool,
+    publish_complete: bool,
+    committed: bool,
+}
+
+impl SourceInstallTransaction {
+    fn new(sources_folder: &Path, mut targets: Vec<PathBuf>) -> Result<Self> {
+        targets.sort();
+        targets.dedup();
+        for target in &targets {
+            if target.parent() != Some(sources_folder) || target.file_name().is_none() {
+                bail!("source install target is outside the sources folder")
+            }
+        }
+        let temporary = Builder::new()
+            .prefix(".rakuyomi-install-")
+            .tempdir_in(sources_folder)
+            .context("couldn't create source install staging directory")?;
+        Ok(Self {
+            sources_folder: sources_folder.to_path_buf(),
+            temporary,
+            targets,
+            backed_up: Vec::new(),
+            installed: Vec::new(),
+            rollback_required: false,
+            publish_complete: false,
+            committed: false,
+        })
+    }
+
+    fn staged_path(&self, target: &Path) -> Result<PathBuf> {
+        let file_name = target
+            .file_name()
+            .context("source install target has no file name")?;
+        Ok(self.temporary.path().join(file_name))
+    }
+
+    fn write(&self, target: &Path, contents: impl AsRef<[u8]>) -> Result<()> {
+        let staged = self.staged_path(target)?;
+        let mut file = fs::File::create(&staged).with_context(|| {
+            format!(
+                "couldn't stage source artifact '{}'",
+                source_file_label(target)
+            )
+        })?;
+        file.write_all(contents.as_ref()).with_context(|| {
+            format!(
+                "couldn't write source artifact '{}'",
+                source_file_label(target)
+            )
+        })?;
+        file.sync_all().with_context(|| {
+            format!(
+                "couldn't sync source artifact '{}'",
+                source_file_label(target)
+            )
+        })?;
+        Ok(())
+    }
+
+    fn publish(&mut self) -> Result<()> {
+        let result = self.publish_inner();
+        if let Err(error) = result {
+            return match self.rollback() {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(anyhow::anyhow!(
+                    "{error:#}; restoring the prior source package also failed: {rollback_error:#}"
+                )),
+            };
+        }
+        self.publish_complete = true;
+        sync_source_directory(&self.sources_folder);
+        Ok(())
+    }
+
+    fn publish_inner(&mut self) -> Result<()> {
+        let rollback_folder = self.temporary.path().join("rollback");
+        fs::create_dir(&rollback_folder).context("couldn't create source rollback directory")?;
+        self.rollback_required = true;
+
+        for target in &self.targets {
+            if target.exists() {
+                let backup = rollback_folder.join(
+                    target
+                        .file_name()
+                        .context("source install target has no file name")?,
+                );
+                fs::rename(target, &backup).with_context(|| {
+                    format!(
+                        "couldn't retain prior source artifact '{}'",
+                        source_file_label(target)
+                    )
+                })?;
+                self.backed_up.push(target.clone());
+            }
+        }
+
+        for target in &self.targets {
+            let staged = self.staged_path(target)?;
+            if staged.exists() {
+                fs::rename(&staged, target).with_context(|| {
+                    format!(
+                        "couldn't publish source artifact '{}'",
+                        source_file_label(target)
+                    )
+                })?;
+                self.installed.push(target.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn rollback(&mut self) -> Result<()> {
+        let rollback_folder = self.temporary.path().join("rollback");
+        let mut failures = Vec::new();
+        let mut installed = Vec::new();
+
+        for target in self.installed.drain(..) {
+            match fs::remove_file(&target) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    failures.push(format!(
+                        "couldn't remove replacement '{}': {error}",
+                        source_file_label(&target)
+                    ));
+                    installed.push(target);
+                }
+            }
+        }
+        self.installed = installed;
+
+        let mut backed_up = Vec::new();
+        while let Some(target) = self.backed_up.pop() {
+            let Some(file_name) = target.file_name() else {
+                failures.push("rollback target has no file name".to_owned());
+                backed_up.push(target);
+                continue;
+            };
+            let backup = rollback_folder.join(file_name);
+            if !backup.exists() {
+                continue;
+            }
+            if let Err(error) = fs::rename(&backup, &target) {
+                failures.push(format!(
+                    "couldn't restore prior artifact '{}': {error}",
+                    source_file_label(&target)
+                ));
+                backed_up.push(target);
+            }
+        }
+        backed_up.reverse();
+        self.backed_up = backed_up;
+        sync_source_directory(&self.sources_folder);
+
+        if failures.is_empty() {
+            self.publish_complete = false;
+            self.rollback_required = false;
+            self.installed.clear();
+            self.backed_up.clear();
+            Ok(())
+        } else {
+            bail!(failures.join("; "))
+        }
+    }
+
+    fn rollback_error(&mut self, error: anyhow::Error) -> anyhow::Error {
+        match self.rollback() {
+            Ok(()) => error,
+            Err(rollback_error) => anyhow::anyhow!(
+                "{error:#}; restoring the prior source package also failed: {rollback_error:#}"
+            ),
+        }
+    }
+
+    fn commit(mut self) {
+        debug_assert!(self.publish_complete);
+        self.committed = true;
+        sync_source_directory(&self.sources_folder);
+    }
+}
+
+impl Drop for SourceInstallTransaction {
+    fn drop(&mut self) {
+        if self.rollback_required && !self.committed {
+            if let Err(error) = self.rollback() {
+                log::error!("failed to roll back source package replacement: {error:#}");
+            }
+        }
+    }
+}
+
 impl SourceManager {
     pub fn new(
         sources_folder: PathBuf,
@@ -112,6 +314,36 @@ impl SourceManager {
         })
     }
 
+    fn install_transaction(
+        &self,
+        id: &SourceId,
+        target_path: &Path,
+    ) -> Result<SourceInstallTransaction> {
+        validate_source_id(id)?;
+        let mut targets = source_package_artifact_paths(target_path)?;
+
+        // A MangaYomi update may switch between Dart and JavaScript. Keep
+        // both possible package paths in the rollback set so the obsolete
+        // implementation cannot remain beside the verified replacement.
+        if source_package_kind(target_path) == Some(SourcePackageKind::MangaYomi) {
+            targets.extend(source_package_artifact_paths(
+                &self.mangayomi_source_path(id),
+            )?);
+            targets.extend(source_package_artifact_paths(
+                &self.mangayomi_js_source_path(id),
+            )?);
+        }
+
+        if let Some(previous_path) = self.source_file_for_id(id) {
+            if previous_path.parent() != Some(self.sources_folder.as_path()) {
+                bail!("loaded source path is outside the sources folder")
+            }
+            targets.extend(source_package_artifact_paths(&previous_path)?);
+        }
+
+        SourceInstallTransaction::new(&self.sources_folder, targets)
+    }
+
     pub fn install_source(
         &mut self,
         id: &SourceId,
@@ -120,17 +352,34 @@ impl SourceManager {
         arc_manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<()> {
         let target_path = self.source_path(id);
-        fs::write(&target_path, contents)?;
+        let mut transaction = self.install_transaction(id, &target_path)?;
+        transaction.write(&target_path, contents)?;
+        let staged_path = transaction.staged_path(&target_path)?;
+        Source::write_meta_file(&staged_path, provenance, None)?;
+        sync_staged_metadata(&transaction, &target_path)?;
 
-        Source::write_meta_file(&target_path, provenance, None)?;
+        let staged_source = Source::from_aix_file(&staged_path, self, arc_manager)
+            .context("staged Aidoku package did not load")?;
+        validate_expected_sources(id, std::slice::from_ref(&staged_source))?;
+        drop(staged_source);
 
-        let source = Source::from_aix_file(&target_path, self, arc_manager)?;
+        transaction.publish()?;
+        let source = match Source::from_aix_file(&target_path, self, arc_manager)
+            .context("published Aidoku package did not load")
+        {
+            Ok(source) => source,
+            Err(error) => return Err(transaction.rollback_error(error)),
+        };
+        if let Err(error) = validate_expected_sources(id, std::slice::from_ref(&source)) {
+            return Err(transaction.rollback_error(error));
+        }
         self.sources_by_id.insert(id.clone(), source);
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
         self.record_loaded_package(&target_path, vec![id.clone()]);
+        transaction.commit();
 
         Ok(())
     }
@@ -144,35 +393,45 @@ impl SourceManager {
         arc_manager: &Arc<Mutex<SourceManager>>,
     ) -> Result<()> {
         let target_path = self.lnreader_source_path(id);
-        fs::write(&target_path, contents)?;
+        let mut transaction = self.install_transaction(id, &target_path)?;
+        transaction.write(&target_path, contents)?;
+        let staged_path = transaction.staged_path(&target_path)?;
+        Source::write_meta_file(&staged_path, provenance, None)?;
+        sync_staged_metadata(&transaction, &target_path)?;
 
-        Source::write_meta_file(&target_path, provenance, None)?;
-
-        let source = Source::from_lnreader_file(&target_path, self, arc_manager)?;
+        let staged_source = Source::from_lnreader_file(&staged_path, self, arc_manager)
+            .context("staged LNReader plugin did not load")?;
         // Installing is an explicit user action with the network up, so the
         // probe runs right away: it writes the probe cache (later loads read
         // it and skip the JS evaluation) and the source is fully probed from
         // the start, showing its real manifest in the installed-sources list.
-        if let Err(e) = source
+        staged_source
             .probe()
-            .with_context(|| format!("failed to probe LNReader plugin {}", id.value()))
+            .with_context(|| format!("failed to probe LNReader plugin {}", id.value()))?;
+        validate_expected_sources(id, std::slice::from_ref(&staged_source))?;
+        drop(staged_source);
+
+        transaction.publish()?;
+        let source = match Source::from_lnreader_file(&target_path, self, arc_manager)
+            .and_then(|source| {
+                source
+                    .probe()
+                    .with_context(|| format!("failed to probe LNReader plugin {}", id.value()))?;
+                validate_expected_sources(id, std::slice::from_ref(&source))?;
+                Ok(source)
+            })
+            .context("published LNReader plugin did not load")
         {
-            // Probe failed: remove the plugin and metadata files to avoid
-            // leaving a partially installed source on disk.
-            let _ = fs::remove_file(&target_path);
-            if let Ok(meta_path) = crate::source::BlockingSource::meta_source_path(&target_path) {
-                let _ = fs::remove_file(&meta_path);
-            }
-            let probe_path = self.lnreader_probe_path(id);
-            let _ = fs::remove_file(&probe_path);
-            return Err(e);
-        }
+            Ok(source) => source,
+            Err(error) => return Err(transaction.rollback_error(error)),
+        };
         self.sources_by_id.insert(id.clone(), source);
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
         self.record_loaded_package(&target_path, vec![id.clone()]);
+        transaction.commit();
 
         Ok(())
     }
@@ -224,35 +483,45 @@ impl SourceManager {
         } else {
             self.mangayomi_source_path(id)
         };
-        fs::write(&target_path, code)?;
-        fs::write(target_path.with_extension("json"), metadata.to_string())?;
+        let metadata_path = target_path.with_extension("json");
+        let mut transaction = self.install_transaction(id, &target_path)?;
+        transaction.write(&target_path, code)?;
+        transaction.write(&metadata_path, metadata.to_string())?;
+        let staged_path = transaction.staged_path(&target_path)?;
+        Source::write_meta_file(&staged_path, provenance, None)?;
+        sync_staged_metadata(&transaction, &target_path)?;
 
-        Source::write_meta_file(&target_path, provenance, None)?;
-
-        let source = Source::from_mangayomi_file(&target_path, self, arc_manager)?;
+        let staged_source = Source::from_mangayomi_file(&staged_path, self, arc_manager)
+            .context("staged MangaYomi extension did not load")?;
         // See `install_lnreader_source`: the probe runs eagerly so the probe
         // cache is written and the source is fully probed from the start.
-        if let Err(e) = source
+        staged_source
             .probe()
-            .with_context(|| format!("failed to probe MangaYomi extension {}", id.value()))
+            .with_context(|| format!("failed to probe MangaYomi extension {}", id.value()))?;
+        validate_expected_sources(id, std::slice::from_ref(&staged_source))?;
+        drop(staged_source);
+
+        transaction.publish()?;
+        let source = match Source::from_mangayomi_file(&target_path, self, arc_manager)
+            .and_then(|source| {
+                source.probe().with_context(|| {
+                    format!("failed to probe MangaYomi extension {}", id.value())
+                })?;
+                validate_expected_sources(id, std::slice::from_ref(&source))?;
+                Ok(source)
+            })
+            .context("published MangaYomi extension did not load")
         {
-            // Probe failed: remove the extension, metadata, and meta files to
-            // avoid leaving a partially installed source on disk.
-            let _ = fs::remove_file(&target_path);
-            let _ = fs::remove_file(target_path.with_extension("json"));
-            if let Ok(meta_path) = crate::source::BlockingSource::meta_source_path(&target_path) {
-                let _ = fs::remove_file(&meta_path);
-            }
-            let probe_path = self.mangayomi_probe_path(id);
-            let _ = fs::remove_file(&probe_path);
-            return Err(e);
-        }
+            Ok(source) => source,
+            Err(error) => return Err(transaction.rollback_error(error)),
+        };
         self.sources_by_id.insert(id.clone(), source);
         self.file_sources.insert(
             id.value().to_owned(),
             target_path.to_string_lossy().to_string(),
         );
         self.record_loaded_package(&target_path, vec![id.clone()]);
+        transaction.commit();
 
         Ok(())
     }
@@ -276,9 +545,28 @@ impl SourceManager {
         }
 
         let target_path = self.keiyoushi_source_path(id);
-        fs::write(&target_path, contents)?;
+        let mut transaction = self.install_transaction(id, &target_path)?;
+        transaction.write(&target_path, contents)?;
+        let staged_path = transaction.staged_path(&target_path)?;
+        Source::write_meta_file(&staged_path, provenance, languages.map(|l| l.to_vec()))?;
+        sync_staged_metadata(&transaction, &target_path)?;
 
-        Source::write_meta_file(&target_path, provenance, languages.map(|l| l.to_vec()))?;
+        let staged_sources = Source::from_keiyoushi_file(&staged_path, self, arc_manager)
+            .context("staged Keiyoushi extension did not load")?;
+        validate_expected_sources(id, &staged_sources)?;
+        drop(staged_sources);
+
+        transaction.publish()?;
+        let sources = match Source::from_keiyoushi_file(&target_path, self, arc_manager)
+            .and_then(|sources| {
+                validate_expected_sources(id, &sources)?;
+                Ok(sources)
+            })
+            .context("published Keiyoushi extension did not load")
+        {
+            Ok(sources) => sources,
+            Err(error) => return Err(transaction.rollback_error(error)),
+        };
 
         // The selection in the meta file replaces any previous one, so drop
         // the sources previously registered from this APK first; otherwise
@@ -298,7 +586,6 @@ impl SourceManager {
             self.file_sources.remove(doomed_id.value());
         }
 
-        let sources = Source::from_keiyoushi_file(&target_path, self, arc_manager)?;
         let mut registered_ids = Vec::new();
         for source in sources {
             let source_id = SourceId::new(source.manifest().info.id.clone());
@@ -310,6 +597,7 @@ impl SourceManager {
             self.sources_by_id.insert(source_id, source);
         }
         self.record_loaded_package(&target_path, registered_ids);
+        transaction.commit();
 
         Ok(())
     }
@@ -858,6 +1146,111 @@ fn source_package_kind(path: &Path) -> Option<SourcePackageKind> {
     }
 }
 
+fn source_package_artifact_paths(path: &Path) -> Result<Vec<PathBuf>> {
+    let kind = source_package_kind(path).context("unsupported source package path")?;
+    let mut paths = vec![
+        path.to_path_buf(),
+        crate::source::BlockingSource::meta_source_path(path)?,
+    ];
+    match kind {
+        SourcePackageKind::Aidoku => {}
+        SourcePackageKind::LnReader => paths.push(source_artifact_with_suffix(
+            path,
+            crate::source::lnreader::LNREADER_FILE_SUFFIX,
+            crate::source::lnreader::LNREADER_PROBE_SUFFIX,
+        )?),
+        SourcePackageKind::MangaYomi => {
+            paths.push(path.with_extension("json"));
+            let package_suffix =
+                if path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        name.ends_with(crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX)
+                    })
+                {
+                    crate::source::mangayomi::MANGA_YOMI_JS_FILE_SUFFIX
+                } else {
+                    crate::source::mangayomi::MANGA_YOMI_FILE_SUFFIX
+                };
+            paths.push(source_artifact_with_suffix(
+                path,
+                package_suffix,
+                crate::source::mangayomi::MANGA_YOMI_PROBE_SUFFIX,
+            )?);
+        }
+        SourcePackageKind::Keiyoushi => paths.push(source_artifact_with_suffix(
+            path,
+            crate::source::keiyoushi::KEIYOUSHI_FILE_SUFFIX,
+            crate::source::keiyoushi::KEIYOUSHI_PROBE_SUFFIX,
+        )?),
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(paths)
+}
+
+fn source_artifact_with_suffix(
+    package_path: &Path,
+    package_suffix: &str,
+    artifact_suffix: &str,
+) -> Result<PathBuf> {
+    let file_name = package_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("source package file name is not valid UTF-8")?;
+    let stem = file_name
+        .strip_suffix(package_suffix)
+        .context("source package has an unexpected suffix")?;
+    Ok(package_path.with_file_name(format!("{stem}{artifact_suffix}")))
+}
+
+fn sync_staged_metadata(
+    transaction: &SourceInstallTransaction,
+    target_package: &Path,
+) -> Result<()> {
+    let staged_package = transaction.staged_path(target_package)?;
+    let staged_meta = crate::source::BlockingSource::meta_source_path(&staged_package)?;
+    fs::File::open(&staged_meta)
+        .and_then(|file| file.sync_all())
+        .with_context(|| {
+            format!(
+                "couldn't sync source artifact '{}'",
+                source_file_label(&staged_meta)
+            )
+        })
+}
+
+fn validate_expected_sources(expected: &SourceId, sources: &[Source]) -> Result<()> {
+    if sources.is_empty() {
+        bail!("source package did not provide any sources")
+    }
+    let mut ids = BTreeSet::new();
+    for source in sources {
+        let id = SourceId::new(source.manifest().info.id.clone());
+        if !ids.insert(id.value().clone()) {
+            bail!("source package contains duplicate source ids")
+        }
+    }
+    if !ids.contains(expected.value()) {
+        bail!(
+            "source package did not provide the requested source '{}'",
+            expected.value()
+        )
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn sync_source_directory(path: &Path) {
+    if let Err(error) = fs::File::open(path).and_then(|directory| directory.sync_all()) {
+        log::warn!("couldn't sync source directory {}: {error}", path.display());
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_source_directory(_path: &Path) {}
+
 fn source_package_label(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -913,16 +1306,15 @@ impl SourceCollection for SourceManager {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::io::{Cursor, Write};
 
     use tempfile::tempdir;
     use zip::{write::FileOptions, ZipWriter};
 
     use super::*;
 
-    fn write_test_aix(path: &Path, source_id: &str, name: &str) {
-        let file = fs::File::create(path).expect("create test source archive");
-        let mut archive = ZipWriter::new(file);
+    fn test_aix_bytes(source_id: &str, name: &str) -> Vec<u8> {
+        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
         let options: FileOptions<'_, ()> = FileOptions::default();
         archive
             .start_file("Payload/source.json", options)
@@ -932,7 +1324,173 @@ mod tests {
             r#"{{"info":{{"id":"{source_id}","name":"{name}","version":1}}}}"#
         )
         .expect("write source manifest");
-        archive.finish().expect("finish test source archive");
+        archive
+            .finish()
+            .expect("finish test source archive")
+            .into_inner()
+    }
+
+    fn write_test_aix(path: &Path, source_id: &str, name: &str) {
+        fs::write(path, test_aix_bytes(source_id, name)).expect("write test source archive");
+    }
+
+    fn staging_directories(path: &Path) -> Vec<PathBuf> {
+        fs::read_dir(path)
+            .expect("read sources directory")
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with(".rakuyomi-install-"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn transaction_rollback_restores_package_and_sidecar() {
+        let directory = tempdir().expect("create sources directory");
+        let package = directory.path().join("fixture.aix");
+        let sidecar = crate::source::BlockingSource::meta_source_path(&package)
+            .expect("derive metadata path");
+        fs::write(&package, b"old package").expect("write old package");
+        fs::write(&sidecar, b"old sidecar").expect("write old sidecar");
+
+        let mut transaction = SourceInstallTransaction::new(
+            directory.path(),
+            source_package_artifact_paths(&package).expect("list artifacts"),
+        )
+        .expect("create transaction");
+        transaction
+            .write(&package, b"new package")
+            .expect("stage package");
+        transaction
+            .write(&sidecar, b"new sidecar")
+            .expect("stage sidecar");
+        transaction.publish().expect("publish replacement");
+        assert_eq!(
+            fs::read(&package).expect("read new package"),
+            b"new package"
+        );
+
+        transaction.rollback().expect("restore prior artifacts");
+
+        assert_eq!(fs::read(package).expect("read old package"), b"old package");
+        assert_eq!(fs::read(sidecar).expect("read old sidecar"), b"old sidecar");
+    }
+
+    #[test]
+    fn failed_aidoku_replacement_keeps_prior_package_and_loaded_source() {
+        let directory = tempdir().expect("create sources directory");
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+        let id = SourceId::new("fixture.source".to_owned());
+        let old = test_aix_bytes(id.value(), "Old Source");
+        let mut guard = manager.blocking_lock();
+        guard
+            .install_source(&id, &old, "old-provider".to_string(), &manager)
+            .expect("install prior package");
+        let package = guard.source_path(&id);
+        let sidecar = crate::source::BlockingSource::meta_source_path(&package)
+            .expect("derive metadata path");
+        let old_sidecar = fs::read(&sidecar).expect("read prior sidecar");
+
+        let result = guard.install_source(
+            &id,
+            b"not a source archive",
+            "new-provider".to_string(),
+            &manager,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(package).expect("read retained package"), old);
+        assert_eq!(
+            fs::read(sidecar).expect("read retained sidecar"),
+            old_sidecar
+        );
+        assert_eq!(
+            guard
+                .sources_by_id
+                .get(&id)
+                .expect("prior source remains loaded")
+                .manifest()
+                .info
+                .name,
+            "Old Source"
+        );
+        assert!(staging_directories(directory.path()).is_empty());
+    }
+
+    #[test]
+    fn wrong_aidoku_identity_cannot_replace_prior_package() {
+        let directory = tempdir().expect("create sources directory");
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+        let id = SourceId::new("fixture.source".to_owned());
+        let old = test_aix_bytes(id.value(), "Old Source");
+        let wrong = test_aix_bytes("different.source", "Wrong Source");
+        let mut guard = manager.blocking_lock();
+        guard
+            .install_source(&id, &old, "old-provider".to_string(), &manager)
+            .expect("install prior package");
+
+        let result = guard.install_source(&id, wrong, "new-provider".to_string(), &manager);
+
+        assert!(result.is_err());
+        assert_eq!(
+            guard
+                .sources_by_id
+                .get(&id)
+                .expect("prior source remains loaded")
+                .manifest()
+                .info
+                .name,
+            "Old Source"
+        );
+        assert_eq!(fs::read(guard.source_path(&id)).expect("read package"), old);
+        assert!(staging_directories(directory.path()).is_empty());
+    }
+
+    #[test]
+    fn successful_aidoku_replacement_commits_package_and_cleans_rollback() {
+        let directory = tempdir().expect("create sources directory");
+        let manager = Arc::new(Mutex::new(
+            SourceManager::from_folder(directory.path().to_path_buf(), Settings::default())
+                .expect("create source manager"),
+        ));
+        let id = SourceId::new("fixture.source".to_owned());
+        let old = test_aix_bytes(id.value(), "Old Source");
+        let new = test_aix_bytes(id.value(), "New Source");
+        let mut guard = manager.blocking_lock();
+        guard
+            .install_source(&id, old, "old-provider".to_string(), &manager)
+            .expect("install prior package");
+
+        guard
+            .install_source(&id, &new, "new-provider".to_string(), &manager)
+            .expect("install replacement");
+
+        assert_eq!(fs::read(guard.source_path(&id)).expect("read package"), new);
+        assert_eq!(
+            guard
+                .sources_by_id
+                .get(&id)
+                .expect("replacement source is loaded")
+                .manifest()
+                .info
+                .name,
+            "New Source"
+        );
+        assert_eq!(
+            guard
+                .source_provenance(&id)
+                .and_then(|provenance| provenance.source_of_source),
+            Some("new-provider".to_owned())
+        );
+        assert!(staging_directories(directory.path()).is_empty());
     }
 
     #[test]
