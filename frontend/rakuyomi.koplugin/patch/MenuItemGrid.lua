@@ -38,6 +38,7 @@ function MenuItemGrid:init()
 
   local show_title = G_reader_settings:readSetting("rakuyomi_grid_show_title", true)
   local show_metadata = G_reader_settings:readSetting("rakuyomi_grid_show_metadata", true)
+  local source_text = self.entry.grid_source_text
   local text_height
   if show_title then
     text_height = Screen:scaleBySize(44)
@@ -46,6 +47,7 @@ function MenuItemGrid:init()
   else
     text_height = 0
   end
+  if source_text then text_height = text_height + Screen:scaleBySize(20) end
 
   local img_width = self.dimen.w - 6
   local img_height = self.dimen.h - text_height - 12 - 6 -- padding y = 3
@@ -74,6 +76,7 @@ function MenuItemGrid:init()
       mandatory_widget = TextWidget:new {
         text = mandatory,
         face = Font:getFace(self.infont, self.infont_size),
+        max_width = self.dimen.w - 6,
         bold = self.bold,
         fgcolor = Blitbuffer.COLOR_BLACK,
       }
@@ -86,6 +89,18 @@ function MenuItemGrid:init()
         mandatory_widget
       }
     end
+  end
+
+  local source_widget
+  if source_text then
+    source_widget = TextWidget:new {
+      text = source_text,
+      face = Font:getFace(self.infont, self.infont_size),
+      max_width = self.dimen.w - 6,
+      padding = 0,
+      bold = false,
+      fgcolor = self.dim and Blitbuffer.COLOR_DARK_GRAY or nil,
+    }
   end
 
   local cover_widget = MenuItemCover.genCover(self, img_width, img_height)
@@ -102,15 +117,10 @@ function MenuItemGrid:init()
     }
   }
 
-  local final_content
-  if mandatory_widget then
-    final_content = VerticalGroup:new {
-      main_content,
-      mandatory_widget
-    }
-  else
-    final_content = main_content
-  end
+  local final_items = { main_content }
+  if source_widget then table.insert(final_items, source_widget) end
+  if mandatory_widget then table.insert(final_items, mandatory_widget) end
+  local final_content = VerticalGroup:new(final_items)
 
   self._underline_container = FrameContainer:new {
     padding = 0,

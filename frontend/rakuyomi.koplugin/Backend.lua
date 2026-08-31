@@ -307,10 +307,6 @@ end
 --- @field on_tmpfs boolean? The chapter is stored in tmpfs.
 --- @field file string? The file path of the chapter (only use in frontend).
 
---- @class SourceMangaSearchResults
---- @field source_information SourceInformation Information about the source that generated those results.
---- @field mangas Manga[] Found mangas.
-
 --- @class FileSummary
 --- @field filenames string[] The names
 --- @field total_size number The total size
@@ -497,6 +493,18 @@ end
 --- @field category 'timeout'|'network'|'http'|'parse'|'source_trap'|'incompatible'|'missing_source'|'internal'
 --- @field message string Safe fallback message.
 
+--- @class SourceSearchOutcome
+--- @field source_id string
+--- @field source_name string
+--- @field result_count number Number of results returned by this source for this page.
+--- @field has_next_page boolean Whether this source reports another page.
+--- @field error SearchError|nil Safe source-specific failure, if search failed.
+
+--- @class MangaSearchResponse
+--- @field results Manga[] Results ordered by source and then title.
+--- @field sources SourceSearchOutcome[] Explicit result, zero-result, or error outcome for every searched source.
+--- @field has_next_page boolean Whether any searched source reports another page.
+
 --- @class SourceOperationSummary
 --- @field source_id string
 --- @field source_name string
@@ -513,16 +521,16 @@ end
 
 --- Searches manga from the manga sources.
 --- @param cancel_id number
---- @search_text string
---- @param exclude string[]|nil
+--- @param search_text string
+--- @param included_source_ids string[] Exact source ids to search. An empty list searches nothing.
 --- @param page number|nil
---- @return SuccessfulResponse<[Manga[], SearchError[], boolean]>|ErrorResponse
-function Backend.searchMangas(cancel_id, search_text, exclude, page)
+--- @return SuccessfulResponse<MangaSearchResponse>|ErrorResponse
+function Backend.searchMangas(cancel_id, search_text, included_source_ids, page)
   return Backend.requestJson({
     path = "/mangas",
     query_params = {
       q = search_text,
-      exclude = exclude and table.concat(exclude, ",") or nil,
+      include = table.concat(included_source_ids, ","),
       cancel_id = cancel_id,
       page = page,
     }

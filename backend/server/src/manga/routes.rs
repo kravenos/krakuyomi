@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
@@ -286,9 +286,18 @@ struct FileSummary {
 #[derive(Deserialize)]
 struct GetMangasQuery {
     cancel_id: Option<usize>,
+    include: Option<String>,
+    /// Temporary compatibility for older clients during settings migration.
     exclude: Option<String>,
     q: String,
     page: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct SearchMangasResponse {
+    results: Vec<Manga>,
+    sources: Vec<usecases::search_mangas::SourceSearchOutcome>,
+    has_next_page: bool,
 }
 
 async fn get_mangas(
@@ -303,25 +312,33 @@ async fn get_mangas(
     }): StateExtractor<State>,
     Query(GetMangasQuery {
         cancel_id,
+        include,
         exclude,
         q,
         page,
     }): Query<GetMangasQuery>,
-) -> Result<Json<(Vec<Manga>, Vec<usecases::search_mangas::SearchError>, bool)>, AppError> {
+) -> Result<Json<SearchMangasResponse>, AppError> {
     let chapter_storage = chapter_storage.lock().await;
     let settings = settings.lock().await;
     let source_manager = source_manager.lock().await;
     let token = create_token(cancel_token_store, cancel_id).await;
 
-    let exclude = exclude.map(|v| {
-        v.split(",")
-            .map(|x| x.trim().to_string())
-            .collect::<Vec<_>>()
-    });
+    let included_source_ids = match include {
+        Some(value) => Some(parse_source_ids(&value)),
+        None => exclude.map(|value| {
+            let excluded = parse_source_ids(&value);
+            source_manager
+                .sources()
+                .into_iter()
+                .map(|source| source.manifest().info.id.clone())
+                .filter(|source_id| !excluded.contains(source_id))
+                .collect::<HashSet<_>>()
+        }),
+    };
 
     let page = page.unwrap_or(1).max(1);
 
-    let (mut mangas, errors, has_next_page) =
+    let (mut mangas, sources, has_next_page) =
         cancel_after(&token.0, Duration::from_secs(59), |token| {
             usecases::search_mangas(
                 &*source_manager,
@@ -330,7 +347,7 @@ async fn get_mangas(
                 &settings,
                 token,
                 q,
-                &exclude,
+                &included_source_ids,
                 page,
                 30,
                 &source_health,
@@ -345,7 +362,20 @@ async fn get_mangas(
 
     let results = mangas.into_iter().map(Manga::from).collect();
 
-    Ok(Json((results, errors, has_next_page)))
+    Ok(Json(SearchMangasResponse {
+        results,
+        sources,
+        has_next_page,
+    }))
+}
+
+fn parse_source_ids(value: &str) -> HashSet<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|source_id| !source_id.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 async fn post_cancel_request(
@@ -1223,4 +1253,23 @@ where
     request_cancellation_handle.abort();
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn included_source_ids_are_trimmed_and_deduplicated() {
+        let source_ids = parse_source_ids(" source.one,source.two,source.one ");
+
+        assert_eq!(source_ids.len(), 2);
+        assert!(source_ids.contains("source.one"));
+        assert!(source_ids.contains("source.two"));
+    }
+
+    #[test]
+    fn explicit_empty_included_value_stays_empty() {
+        assert!(parse_source_ids("").is_empty());
+    }
 }
