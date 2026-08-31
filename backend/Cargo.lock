@@ -4254,6 +4254,7 @@ dependencies = [
  "axum",
  "axum-macros",
  "cbz_metadata_reader",
+ "chrono",
  "clap",
  "futures",
  "humansize",

@@ -247,6 +247,7 @@ mod tests {
         let list = SourceList {
             url,
             source_type: SourceListType::Aidoku,
+            enabled: true,
         };
         assert_eq!(source_list_key(&list), "lnreader/lnreader-plugins");
 
@@ -254,6 +255,7 @@ mod tests {
         let list = SourceList {
             url,
             source_type: SourceListType::LnReader,
+            enabled: true,
         };
         assert_eq!(source_list_key(&list), "lnreader/lnreader-plugins");
 
@@ -262,6 +264,7 @@ mod tests {
         let list = SourceList {
             url,
             source_type: SourceListType::Aidoku,
+            enabled: true,
         };
         assert_eq!(source_list_key(&list), "tachibana-shin.github.io");
 
@@ -269,6 +272,7 @@ mod tests {
         let list = SourceList {
             url,
             source_type: SourceListType::Keiyoushi,
+            enabled: true,
         };
         assert_eq!(source_list_key(&list), "keiyoushi/extensions");
     }
@@ -284,6 +288,7 @@ mod tests {
             let list = SourceList {
                 url: Url::parse(url).expect("hardcoded URL is valid"),
                 source_type: SourceListType::Keiyoushi,
+                enabled: true,
             };
             assert_eq!(
                 resolve_source_list(&list).await.as_str(),

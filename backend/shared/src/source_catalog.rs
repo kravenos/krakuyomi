@@ -38,6 +38,21 @@ pub struct CatalogCandidate {
     pub selected: bool,
 }
 
+/// User-facing state for one configured source list.
+#[derive(Clone, Debug, Serialize)]
+pub struct CatalogListSummary {
+    pub list_id: String,
+    pub source_type: SourceListType,
+    pub provider_url: Url,
+    pub resolved_provider_url: Option<Url>,
+    pub configured_order: usize,
+    pub enabled: bool,
+    pub cached: bool,
+    pub fetched_at: Option<DateTime<Utc>>,
+    pub candidate_count: usize,
+    pub last_fetch_error: Option<String>,
+}
+
 /// The exact provenance persisted beside an installed source package.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SourceProvenance {
@@ -117,7 +132,7 @@ impl CatalogStore {
     /// Refreshes every configured list independently. A failed list keeps its
     /// previous valid candidates, and never discards another list's result.
     pub async fn refresh(&self, source_lists: &[SourceList]) -> Result<Vec<CatalogCandidate>> {
-        if source_lists.is_empty() {
+        if !source_lists.iter().any(|source_list| source_list.enabled) {
             return Ok(Vec::new());
         }
 
@@ -134,6 +149,9 @@ impl CatalogStore {
         let mut caches = Vec::new();
         let mut failures = 0usize;
         for (configured_order, source_list) in source_lists.iter().enumerate() {
+            if !source_list.enabled {
+                continue;
+            }
             let list_id = source_list_id(source_list);
             let previous = self
                 .load_cache(&list_id)
@@ -187,11 +205,90 @@ impl CatalogStore {
         Ok(candidates_from_caches(caches))
     }
 
+    /// Fetches and validates one list without changing its cache or settings.
+    pub async fn validate(source_list: &SourceList) -> Result<CatalogListSummary> {
+        validate_web_url(&source_list.url)?;
+        let client = crate::tls::client_builder()
+            .build()
+            .context("failed to create source catalog HTTP client")?;
+        let resolved_provider_url = resolve_source_list(source_list).await;
+        let value = fetch_source_list(&client, &resolved_provider_url).await?;
+        let cache = build_cache(source_list, 0, resolved_provider_url, value)?;
+        Ok(summary_from_cache(&cache, source_list.enabled))
+    }
+
+    /// Refreshes one configured list and returns its resulting cache state.
+    /// A failed refresh keeps and reports the last-known-good cache.
+    pub async fn refresh_one(
+        &self,
+        source_list: &SourceList,
+        configured_order: usize,
+    ) -> Result<CatalogListSummary> {
+        validate_web_url(&source_list.url)?;
+        fs::create_dir_all(&self.root).with_context(|| {
+            format!(
+                "couldn't create source catalog cache directory {}",
+                self.root.display()
+            )
+        })?;
+        let list_id = source_list_id(source_list);
+        let previous = self
+            .load_cache(&list_id)
+            .ok()
+            .filter(|cache| cache_matches_source_list(cache, source_list, &list_id));
+        let client = crate::tls::client_builder()
+            .build()
+            .context("failed to create source catalog HTTP client")?;
+        let resolved_provider_url = resolve_source_list(source_list).await;
+        let refreshed = fetch_source_list(&client, &resolved_provider_url)
+            .await
+            .and_then(|value| {
+                build_cache(source_list, configured_order, resolved_provider_url, value)
+            })
+            .and_then(|cache| {
+                self.save_cache(&cache)?;
+                Ok(cache)
+            });
+
+        match refreshed {
+            Ok(cache) => Ok(summary_from_cache(&cache, source_list.enabled)),
+            Err(error) => {
+                let message = bounded_error(&error);
+                if let Some(mut cache) = previous {
+                    cache.configured_order = configured_order;
+                    cache.last_fetch_error = Some(message);
+                    self.save_cache(&cache)?;
+                    Ok(summary_from_cache(&cache, source_list.enabled))
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+
     /// Loads cached candidates for the currently configured lists without
     /// contacting the network.
     pub fn load(&self, source_lists: &[SourceList]) -> Result<Vec<CatalogCandidate>> {
+        self.load_configured(source_lists, false)
+    }
+
+    /// Loads cached candidates for every configured list, including disabled
+    /// lists. This is used only to preview the effect of disabling/removing a
+    /// list; disabled candidates never enter normal catalog selection.
+    pub fn load_all(&self, source_lists: &[SourceList]) -> Result<Vec<CatalogCandidate>> {
+        self.load_configured(source_lists, true)
+    }
+
+    fn load_configured(
+        &self,
+        source_lists: &[SourceList],
+        include_disabled: bool,
+    ) -> Result<Vec<CatalogCandidate>> {
         let mut caches = Vec::new();
         for (configured_order, source_list) in source_lists.iter().enumerate() {
+            if !include_disabled && !source_list.enabled {
+                continue;
+            }
             let list_id = source_list_id(source_list);
             match self.load_cache(&list_id) {
                 Ok(mut cache) if cache_matches_source_list(&cache, source_list, &list_id) => {
@@ -208,6 +305,35 @@ impl CatalogStore {
         Ok(candidates_from_caches(caches))
     }
 
+    /// Reports cache state for every configured list without network access.
+    pub fn summaries(&self, source_lists: &[SourceList]) -> Vec<CatalogListSummary> {
+        source_lists
+            .iter()
+            .enumerate()
+            .map(|(configured_order, source_list)| {
+                let list_id = source_list_id(source_list);
+                match self.load_cache(&list_id) {
+                    Ok(mut cache) if cache_matches_source_list(&cache, source_list, &list_id) => {
+                        cache.configured_order = configured_order;
+                        summary_from_cache(&cache, source_list.enabled)
+                    }
+                    _ => CatalogListSummary {
+                        list_id,
+                        source_type: source_list.source_type,
+                        provider_url: normalized_source_list_url(source_list),
+                        resolved_provider_url: None,
+                        configured_order,
+                        enabled: source_list.enabled,
+                        cached: false,
+                        fetched_at: None,
+                        candidate_count: 0,
+                        last_fetch_error: None,
+                    },
+                }
+            })
+            .collect()
+    }
+
     /// Finds the exact cached candidate named by an install request.
     pub fn find(
         &self,
@@ -218,7 +344,7 @@ impl CatalogStore {
     ) -> Result<CatalogCandidate> {
         let configured = source_lists
             .iter()
-            .any(|source_list| source_list_id(source_list) == list_id);
+            .any(|source_list| source_list.enabled && source_list_id(source_list) == list_id);
         if !configured {
             bail!("source catalog is no longer configured");
         }
@@ -278,6 +404,28 @@ impl CatalogStore {
         sync_parent_directory(&self.root);
         Ok(())
     }
+}
+
+fn summary_from_cache(cache: &CatalogCache, enabled: bool) -> CatalogListSummary {
+    CatalogListSummary {
+        list_id: cache.list_id.clone(),
+        source_type: cache.source_type,
+        provider_url: cache.provider_url.clone(),
+        resolved_provider_url: Some(cache.resolved_provider_url.clone()),
+        configured_order: cache.configured_order,
+        enabled,
+        cached: true,
+        fetched_at: Some(cache.fetched_at),
+        candidate_count: cache.validation.candidate_count,
+        last_fetch_error: cache.last_fetch_error.clone(),
+    }
+}
+
+fn validate_web_url(url: &Url) -> Result<()> {
+    if matches!(url.scheme(), "http" | "https") {
+        return Ok(());
+    }
+    bail!("source list URL must use HTTP or HTTPS")
 }
 
 /// Returns the exact normalized URL used as the catalog's identity input.
@@ -453,6 +601,7 @@ fn candidates_from_caches(caches: Vec<CatalogCache>) -> Vec<CatalogCandidate> {
                     crate::usecases::resolve_source_list::source_list_key(&SourceList {
                         url: cache.provider_url.clone(),
                         source_type: cache.source_type,
+                        enabled: true,
                     });
                 CatalogCandidate {
                     list_id: cache.list_id.clone(),
@@ -594,6 +743,7 @@ mod tests {
         SourceList {
             url: Url::parse(url).expect("test URL is valid"),
             source_type,
+            enabled: true,
         }
     }
 
@@ -815,5 +965,27 @@ mod tests {
 
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].source.id.value(), "fixture");
+    }
+
+    #[test]
+    fn disabled_lists_keep_their_cache_but_do_not_supply_candidates() {
+        let directory = tempdir().expect("create cache directory");
+        let store = CatalogStore::new(directory.path().to_path_buf());
+        let mut list = source_list("https://example.com/index.json", SourceListType::LnReader);
+        let saved = cache(&list, 0, "fixture", serde_json::json!("1.2.3"));
+        store.save_cache(&saved).expect("save cache");
+        list.enabled = false;
+
+        assert!(store
+            .load(&[list.clone()])
+            .expect("load active caches")
+            .is_empty());
+        assert_eq!(
+            store
+                .load_all(&[list])
+                .expect("load all configured caches")
+                .len(),
+            1
+        );
     }
 }

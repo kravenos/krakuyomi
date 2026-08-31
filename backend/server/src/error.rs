@@ -27,6 +27,7 @@ pub enum AppError {
     NotFound,
     Conflict(String),
     DownloadAllChaptersProgressNotFound,
+    SourceCatalog(anyhow::Error),
     SourceStatus(anyhow::Error),
     SourceOperation(SourceOperationError),
     NetworkFailure(anyhow::Error),
@@ -67,6 +68,7 @@ impl From<&AppError> for StatusCode {
             | AppError::NotFound
             | AppError::DownloadAllChaptersProgressNotFound => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
+            AppError::SourceCatalog(_) => StatusCode::BAD_GATEWAY,
             AppError::SourceStatus(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::SourceOperation(error)
                 if error.category() == shared::source_health::SourceErrorCategory::Timeout =>
@@ -88,6 +90,9 @@ impl From<&AppError> for ErrorResponse {
             AppError::DownloadAllChaptersProgressNotFound => {
                 "No download is in progress.".to_string()
             }
+            AppError::SourceCatalog(_) => {
+                "The source list could not be validated or refreshed.".to_owned()
+            }
             AppError::SourceStatus(_) => "Source status could not be loaded.".to_owned(),
             AppError::SourceOperation(error) => error.safe_message().to_owned(),
             AppError::NetworkFailure(e) => {
@@ -108,6 +113,7 @@ impl From<&AppError> for ErrorResponse {
         let (code, retryable) = match value {
             AppError::SourceNotFound => (Some("missing_source".to_owned()), false),
             AppError::Conflict(_) => (Some("stale_uninstall_preview".to_owned()), false),
+            AppError::SourceCatalog(_) => (Some("source_catalog_unavailable".to_owned()), true),
             AppError::SourceStatus(_) => (Some("source_status_unavailable".to_owned()), true),
             AppError::SourceOperation(error) => (
                 Some(error.category().code().to_owned()),
@@ -138,6 +144,7 @@ impl IntoResponse for AppError {
 
         let inner_exception = match self {
             Self::NetworkFailure(ref e) => Some(e),
+            Self::SourceCatalog(ref e) => Some(e),
             Self::SourceStatus(ref e) => Some(e),
             Self::SourceOperation(ref error) => Some(error.cause()),
             Self::Other(ref e) => Some(e),
@@ -220,5 +227,21 @@ mod tests {
         assert!(response.retryable);
         assert!(!response.message.contains("private"));
         assert!(!response.message.contains("secret"));
+    }
+
+    #[test]
+    fn source_catalog_error_does_not_expose_private_url_details() {
+        let response = ErrorResponse::from(&AppError::SourceCatalog(anyhow::anyhow!(
+            "https://user:secret@example.com/index.json?token=private"
+        )));
+
+        assert_eq!(
+            response.message,
+            "The source list could not be validated or refreshed."
+        );
+        assert_eq!(response.code.as_deref(), Some("source_catalog_unavailable"));
+        assert!(response.retryable);
+        assert!(!response.message.contains("secret"));
+        assert!(!response.message.contains("private"));
     }
 }

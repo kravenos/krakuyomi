@@ -6,10 +6,12 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use shared::model::{InstallOutcome, SourceId};
 use shared::resource_usage::SourceUsage;
-use shared::settings::{SourceListType, SourceSettingValue};
+use shared::settings::{SourceList, SourceListType, SourceSettingValue};
 use shared::source::model::SettingDefinition;
 use shared::source::SourceBackend;
-use shared::source_catalog::{is_newer_source_version, CatalogCandidate, CatalogStore};
+use shared::source_catalog::{
+    is_newer_source_version, source_list_id, CatalogCandidate, CatalogListSummary, CatalogStore,
+};
 use shared::source_health::{SourceHealthSummary, SourceOperationClass, SourceRuntimeHealth};
 use shared::source_manager::{SourcePackageKind, SourcePackageLoadState, SourcePackageStatus};
 use shared::usecases;
@@ -23,6 +25,16 @@ pub fn routes() -> Router<State> {
     Router::new()
         .route("/available-sources", get(list_available_sources))
         .route("/source-catalogs/refresh", post(list_available_sources))
+        .route("/source-catalogs/status", get(list_source_catalogs))
+        .route("/source-catalogs/validate", post(validate_source_catalog))
+        .route(
+            "/source-catalogs/{list_id}/refresh",
+            post(refresh_source_catalog),
+        )
+        .route(
+            "/source-catalogs/{list_id}/change-preview",
+            get(get_source_catalog_change_preview),
+        )
         .route(
             "/available-sources/{source_id}/install",
             post(install_source),
@@ -47,6 +59,233 @@ pub fn routes() -> Router<State> {
             post(set_source_stored_settings),
         )
         .route("/installed-sources/usage", get(get_all_source_usage))
+}
+
+async fn list_source_catalogs(
+    StateExtractor(State {
+        settings,
+        catalog_cache_path,
+        ..
+    }): StateExtractor<State>,
+) -> Result<Json<Vec<CatalogListSummary>>, AppError> {
+    let source_lists = settings.lock().await.source_lists.clone();
+    let summaries = tokio::task::spawn_blocking(move || {
+        CatalogStore::new(catalog_cache_path).summaries(&source_lists)
+    })
+    .await
+    .map_err(|error| AppError::SourceStatus(error.into()))?;
+    Ok(Json(summaries))
+}
+
+async fn validate_source_catalog(
+    Json(source_list): Json<SourceList>,
+) -> Result<Json<CatalogListSummary>, AppError> {
+    CatalogStore::validate(&source_list)
+        .await
+        .map(Json)
+        .map_err(AppError::SourceCatalog)
+}
+
+#[derive(Deserialize)]
+struct SourceCatalogParams {
+    list_id: String,
+}
+
+async fn refresh_source_catalog(
+    StateExtractor(State {
+        settings,
+        catalog_cache_path,
+        ..
+    }): StateExtractor<State>,
+    Path(SourceCatalogParams { list_id }): Path<SourceCatalogParams>,
+) -> Result<Json<CatalogListSummary>, AppError> {
+    let source_lists = settings.lock().await.source_lists.clone();
+    let (configured_order, source_list) = source_lists
+        .into_iter()
+        .enumerate()
+        .find(|(_, source_list)| source_list_id(source_list) == list_id)
+        .ok_or(AppError::NotFound)?;
+    CatalogStore::new(catalog_cache_path)
+        .refresh_one(&source_list, configured_order)
+        .await
+        .map(Json)
+        .map_err(AppError::SourceCatalog)
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct CatalogCoverageSource {
+    source_id: String,
+    name: String,
+    presence: &'static str,
+    library_manga_count: usize,
+}
+
+#[derive(serde::Serialize)]
+struct SourceCatalogChangePreview {
+    list_id: String,
+    coverage_known: bool,
+    affected_sources: Vec<CatalogCoverageSource>,
+}
+
+async fn get_source_catalog_change_preview(
+    StateExtractor(State {
+        settings,
+        catalog_cache_path,
+        source_manager,
+        database,
+        ..
+    }): StateExtractor<State>,
+    Path(SourceCatalogParams { list_id }): Path<SourceCatalogParams>,
+) -> Result<Json<SourceCatalogChangePreview>, AppError> {
+    let source_lists = settings.lock().await.source_lists.clone();
+    if !source_lists
+        .iter()
+        .any(|source_list| source_list_id(source_list) == list_id)
+    {
+        return Err(AppError::NotFound);
+    }
+    let active_list_ids = source_lists
+        .iter()
+        .filter(|source_list| source_list.enabled)
+        .map(source_list_id)
+        .collect::<BTreeSet<_>>();
+    let candidates = tokio::task::spawn_blocking(move || {
+        CatalogStore::new(catalog_cache_path).load_all(&source_lists)
+    })
+    .await
+    .map_err(|error| AppError::SourceStatus(error.into()))?
+    .map_err(AppError::SourceStatus)?;
+    let (installed, packages) = {
+        let source_manager = source_manager.lock().await;
+        (
+            usecases::list_installed_sources(&source_manager),
+            source_manager.source_packages.clone(),
+        )
+    };
+    let library_counts = database
+        .count_library_mangas_by_source()
+        .await
+        .map_err(|error| AppError::SourceStatus(error.into()))?;
+
+    Ok(Json(build_catalog_change_preview(
+        list_id,
+        active_list_ids,
+        candidates,
+        installed,
+        packages,
+        library_counts,
+    )))
+}
+
+fn build_catalog_change_preview(
+    list_id: String,
+    active_list_ids: BTreeSet<String>,
+    candidates: Vec<CatalogCandidate>,
+    installed: Vec<shared::model::SourceInformation>,
+    packages: Vec<SourcePackageStatus>,
+    library_counts: HashMap<String, usize>,
+) -> SourceCatalogChangePreview {
+    let target_is_active = active_list_ids.contains(&list_id);
+    let target = candidates
+        .iter()
+        .filter(|candidate| target_is_active && candidate.list_id == list_id)
+        .collect::<Vec<_>>();
+    let coverage_known = !target_is_active || !target.is_empty();
+    let remaining = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.list_id != list_id && active_list_ids.contains(&candidate.list_id)
+        })
+        .collect::<Vec<_>>();
+    let installed_names = installed
+        .iter()
+        .map(|source| (source.id.value().clone(), source.name.clone()))
+        .collect::<HashMap<_, _>>();
+    let mut installed_kinds = HashMap::new();
+    for package in &packages {
+        for source_id in &package.source_ids {
+            installed_kinds.insert(source_id.value().clone(), Some(package.kind));
+        }
+    }
+    for source in &installed {
+        installed_kinds
+            .entry(source.id.value().clone())
+            .or_insert(None);
+    }
+
+    let mut affected = HashMap::<String, CatalogCoverageSource>::new();
+    for (source_id, package_kind) in &installed_kinds {
+        let supplied_by_target = target.iter().any(|candidate| {
+            candidate.source.id.value() == source_id
+                && package_kind.is_none_or(|kind| source_type_matches(kind, candidate.source_type))
+        });
+        let supplied_elsewhere = remaining.iter().any(|candidate| {
+            candidate.source.id.value() == source_id
+                && package_kind.is_none_or(|kind| source_type_matches(kind, candidate.source_type))
+        });
+        if supplied_by_target && !supplied_elsewhere {
+            let name = installed_names
+                .get(source_id)
+                .cloned()
+                .or_else(|| {
+                    target
+                        .iter()
+                        .find(|candidate| candidate.source.id.value() == source_id)
+                        .map(|candidate| candidate.source.name.clone())
+                })
+                .unwrap_or_else(|| source_id.clone());
+            affected.insert(
+                source_id.clone(),
+                CatalogCoverageSource {
+                    source_id: source_id.clone(),
+                    name,
+                    presence: "installed",
+                    library_manga_count: library_counts.get(source_id).copied().unwrap_or(0),
+                },
+            );
+        }
+    }
+
+    for (source_id, library_manga_count) in library_counts {
+        if installed_kinds.contains_key(&source_id) {
+            continue;
+        }
+        let supplied_by_target = target
+            .iter()
+            .any(|candidate| candidate.source.id.value() == &source_id);
+        let supplied_elsewhere = remaining
+            .iter()
+            .any(|candidate| candidate.source.id.value() == &source_id);
+        if supplied_by_target && !supplied_elsewhere {
+            let name = target
+                .iter()
+                .find(|candidate| candidate.source.id.value() == &source_id)
+                .map(|candidate| candidate.source.name.clone())
+                .unwrap_or_else(|| source_id.clone());
+            affected.insert(
+                source_id.clone(),
+                CatalogCoverageSource {
+                    source_id,
+                    name,
+                    presence: "missing",
+                    library_manga_count,
+                },
+            );
+        }
+    }
+
+    let mut affected_sources = affected.into_values().collect::<Vec<_>>();
+    affected_sources.sort_by(|left, right| {
+        left.presence
+            .cmp(right.presence)
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+            .then_with(|| left.source_id.cmp(&right.source_id))
+    });
+    SourceCatalogChangePreview {
+        list_id,
+        coverage_known,
+        affected_sources,
+    }
 }
 
 async fn list_available_sources(
@@ -834,5 +1073,60 @@ mod tests {
         assert_eq!(statuses[0].presence, "missing");
         assert!(statuses[0].selected_list_id.is_none());
         assert_eq!(statuses[0].catalog, "available");
+    }
+
+    #[test]
+    fn catalog_change_preview_reports_installed_and_missing_sources_losing_coverage() {
+        let mut installed_candidate = candidate("installed", "Installed", json!("2.0.0"));
+        installed_candidate.list_id = "target".to_owned();
+        let mut missing_candidate = candidate("missing", "Missing", json!("2.0.0"));
+        missing_candidate.list_id = "target".to_owned();
+        let package = SourcePackageStatus {
+            package_label: "installed.lnreader.js".to_owned(),
+            kind: SourcePackageKind::LnReader,
+            source_ids: vec![SourceId::new("installed".to_owned())],
+            load: SourcePackageLoadState::Loaded,
+            error: None,
+        };
+
+        let preview = build_catalog_change_preview(
+            "target".to_owned(),
+            BTreeSet::from(["target".to_owned()]),
+            vec![installed_candidate, missing_candidate],
+            vec![source("installed", "Installed", json!("1.0.0"))],
+            vec![package],
+            HashMap::from([("installed".to_owned(), 2), ("missing".to_owned(), 4)]),
+        );
+
+        assert_eq!(preview.affected_sources.len(), 2);
+        assert_eq!(preview.affected_sources[0].presence, "installed");
+        assert_eq!(preview.affected_sources[1].presence, "missing");
+        assert_eq!(preview.affected_sources[1].library_manga_count, 4);
+    }
+
+    #[test]
+    fn catalog_change_preview_ignores_sources_covered_by_another_active_list() {
+        let mut target = candidate("fixture", "Fixture", json!("2.0.0"));
+        target.list_id = "target".to_owned();
+        let mut alternative = candidate("fixture", "Fixture", json!("1.0.0"));
+        alternative.list_id = "alternative".to_owned();
+        let package = SourcePackageStatus {
+            package_label: "fixture.lnreader.js".to_owned(),
+            kind: SourcePackageKind::LnReader,
+            source_ids: vec![SourceId::new("fixture".to_owned())],
+            load: SourcePackageLoadState::Loaded,
+            error: None,
+        };
+
+        let preview = build_catalog_change_preview(
+            "target".to_owned(),
+            BTreeSet::from(["target".to_owned(), "alternative".to_owned()]),
+            vec![target, alternative],
+            vec![source("fixture", "Fixture", json!("1.0.0"))],
+            vec![package],
+            HashMap::new(),
+        );
+
+        assert!(preview.affected_sources.is_empty());
     }
 }
