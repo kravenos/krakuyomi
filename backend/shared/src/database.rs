@@ -31,6 +31,15 @@ pub struct Database {
     pool: Arc<RwLock<Pool<Sqlite>>>,
 }
 
+/// Cached chapter totals for one manga.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CachedChapterCounts {
+    /// Number of cached chapter-information rows after scanlator filtering.
+    pub total: usize,
+    /// Number of those chapters explicitly marked as read.
+    pub read: usize,
+}
+
 impl Clone for Database {
     fn clone(&self) -> Self {
         Self {
@@ -161,6 +170,52 @@ impl Database {
         .await?;
 
         Ok(rows.into_iter().map(|row| row.manga_id()).collect())
+    }
+
+    /// Returns cached total and explicit read counts per manga in one grouped query.
+    pub async fn get_cached_chapter_counts(
+        &self,
+    ) -> Result<HashMap<(String, String), CachedChapterCounts>> {
+        use sqlx::Row;
+
+        let rows = sqlx::query(
+            r#"
+                SELECT
+                    ci.source_id,
+                    ci.manga_id,
+                    COUNT(*) AS total,
+                    COALESCE(SUM(CASE WHEN cs.read = 1 THEN 1 ELSE 0 END), 0) AS read
+                FROM chapter_informations ci
+                LEFT JOIN manga_state ms
+                    ON ms.source_id = ci.source_id AND ms.manga_id = ci.manga_id
+                LEFT JOIN chapter_state cs
+                    ON cs.source_id = ci.source_id
+                    AND cs.manga_id = ci.manga_id
+                    AND cs.chapter_id = ci.chapter_id
+                WHERE (ms.preferred_scanlator IS NULL
+                    OR ci.scanlator = ms.preferred_scanlator
+                    OR ci.scanlator IS NULL)
+                GROUP BY ci.source_id, ci.manga_id
+            "#,
+        )
+        .fetch_all(&*self.pool.read().await)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.get::<String, _>("source_id"),
+                        row.get::<String, _>("manga_id"),
+                    ),
+                    CachedChapterCounts {
+                        total: row.get::<i64, _>("total") as usize,
+                        read: row.get::<i64, _>("read") as usize,
+                    },
+                )
+            })
+            .collect())
     }
 
     /// Counts library manga belonging to any of the supplied source ids in
@@ -1030,6 +1085,8 @@ impl Database {
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
+                    total_chapters_count: None,
+                    read_chapters_count: None,
                     last_read: row.last_read,
                     in_library: true,
                     state_viewer: row.state_viewer != 0,
@@ -3314,6 +3371,8 @@ impl Database {
                     information: info,
                     state: MangaState::default(),
                     unread_chapters_count: row.unread_chapters_count.map(|v| v as usize),
+                    total_chapters_count: None,
+                    read_chapters_count: None,
                     last_read: row.last_read,
                     in_library: false,
                     state_viewer: row.state_viewer != 0,
