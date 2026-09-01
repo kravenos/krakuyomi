@@ -34,6 +34,7 @@ local Testing = require("testing")
 local TaskManagerView = require("TaskManagerView")
 local UpdateChecker = require("UpdateChecker")
 local calcLastReadText = require("utils/calcLastReadText")
+local buildMangaTapActionButtons = require("utils/buildMangaTapActionButtons")
 local findEntries = require("utils/findEntries")
 local filterFullyReadMangas = require("utils/filterFullyReadMangas")
 local findLastRead = require("utils/findLastRead")
@@ -586,24 +587,50 @@ end
 
 --- @private
 function LibraryView:onPrimaryMenuChoice(item)
+  local manga = item.manga
+  if manga then
+    self:_showMangaActionDialog(manga)
+  end
+end
+
+--- Opens the chapter listing for the given manga.
+--- @private
+--- @param manga Manga
+function LibraryView:_openChapterList(manga)
   Trapper:wrap(function()
-    --- @type Manga
-    local manga = item.manga
+    local onReturnCallback = function()
+      self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
+    end
 
-    local tap_action = G_reader_settings:readSetting("rakuyomi_tap_manga_action", "chapter_list")
-
-    if tap_action == "continue_reading" then
-      self:_handleContinueReading(manga)
-    else
-      local onReturnCallback = function()
-        self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
-      end
-
-      if ChapterListing:fetchAndShow(manga, onReturnCallback, true) then
-        self:onClose(true)
-      end
+    if ChapterListing:fetchAndShow(manga, onReturnCallback, true) then
+      self:onClose(true)
     end
   end)
+end
+
+--- Shows both available actions when a manga is tapped.
+--- @private
+--- @param manga Manga
+function LibraryView:_showMangaActionDialog(manga)
+  local dialog
+  dialog = ButtonDialog:new {
+    title = manga.title,
+    title_align = "center",
+    buttons = buildMangaTapActionButtons(
+      Icons.RESTORE .. " " .. _("Continue Reading"),
+      Icons.FA_LIST .. " " .. _("List chapters"),
+      function()
+        UIManager:close(dialog)
+        self:_handleContinueReading(manga)
+      end,
+      function()
+        UIManager:close(dialog)
+        self:_openChapterList(manga)
+      end
+    ),
+  }
+
+  UIManager:show(dialog)
 end
 
 --- @private
@@ -676,10 +703,17 @@ function LibraryView:onContextMenuChoice(item)
     },
     {
       {
-        text = _("Continue Reading"),
+        text = Icons.RESTORE .. " " .. _("Continue Reading"),
         callback = function()
           UIManager:close(dialog_context_menu)
           self:_handleContinueReading(manga)
+        end,
+      },
+      {
+        text = Icons.FA_LIST .. " " .. _("List chapters"),
+        callback = function()
+          UIManager:close(dialog_context_menu)
+          self:_openChapterList(manga)
         end,
       },
     },
@@ -702,24 +736,6 @@ function LibraryView:onContextMenuChoice(item)
       },
     },
   }
-
-  local tap_action = G_reader_settings:readSetting("rakuyomi_tap_manga_action", "chapter_list")
-  if tap_action == "continue_reading" then
-    table.insert(context_menu_buttons, 1, { {
-      text = _("List chapters"),
-      callback = function()
-        local onReturnCallback = function()
-          self:fetchAndShow(self.current_playlist, nil, { hideTopClose = self.hide_top_close })
-        end
-
-        Trapper:wrap(function()
-          if ChapterListing:fetchAndShow(manga, onReturnCallback, true) then
-            self:onClose(true)
-          end
-        end)
-      end
-    } })
-  end
 
   if self.current_playlist == nil then
     table.insert(context_menu_buttons, {
