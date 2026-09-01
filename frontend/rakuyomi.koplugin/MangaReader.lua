@@ -8,6 +8,7 @@ local logger = require("logger")
 local _ = require("gettext+")
 local Backend = require("Backend")
 local applyReadingDirection = require("utils/applyReadingDirection")
+local getPageTurnStyleChange = require("utils/getPageTurnStyleChange")
 local shallow_clone = require("utils/shallowClone")
 local CbzDocument = require("extensions/CbzDocument")
 
@@ -96,6 +97,13 @@ function MangaReader:show(options)
   -- re set because hook end book
   self.is_showing = true
   UIManager:nextTick(function()
+    local style_ok, style_err = pcall(function()
+      self:applyPageTurnStylePreference()
+    end)
+    if not style_ok then
+      logger.warn("Unable to apply RakuYomi page-turn style:", style_err)
+    end
+
     local ok, err = pcall(function()
       self:applyReadingDirectionPreference()
     end)
@@ -104,6 +112,22 @@ function MangaReader:show(options)
     end
   end)
   Testing:emitEvent('manga_reader_shown')
+end
+
+--- Applies the page-turn style only when the user explicitly selected one.
+--- @private
+function MangaReader:applyPageTurnStylePreference()
+  local ui = ReaderUI.instance
+  local configurable = ui and ui.document and ui.document.configurable
+  local style = G_reader_settings:readSetting("rakuyomi_page_turn_style")
+  local change = getPageTurnStyleChange(configurable, style)
+  if change == nil then
+    return
+  end
+
+  configurable._modified = true
+  ui:handleEvent(Event:new("ConfigChange", change.config_key, change.config_value))
+  ui:handleEvent(Event:new(change.event_name, change.event_value))
 end
 
 --- Applies the reading direction only when the user explicitly selected one.
