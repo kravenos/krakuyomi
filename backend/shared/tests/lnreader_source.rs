@@ -150,6 +150,7 @@ async fn run_plugin_smoke(
 }
 
 #[tokio::test]
+#[ignore = "live network test; run with --ignored"]
 async fn lnreader_plugin_end_to_end_chrysanthemumgarden() {
     run_plugin_smoke(
         "chrysanthemumgarden.js",
@@ -164,6 +165,7 @@ async fn lnreader_plugin_end_to_end_chrysanthemumgarden() {
 /// Royal Road has no `resolveUrl`, so this also exercises the `site + path`
 /// chapter URL fallback.
 #[tokio::test]
+#[ignore = "live network test; run with --ignored"]
 async fn lnreader_plugin_end_to_end_royalroad() {
     run_plugin_smoke(
         "royalroad.js",
