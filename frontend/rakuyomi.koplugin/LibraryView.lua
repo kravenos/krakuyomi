@@ -35,6 +35,7 @@ local TaskManagerView = require("TaskManagerView")
 local UpdateChecker = require("UpdateChecker")
 local calcLastReadText = require("utils/calcLastReadText")
 local findEntries = require("utils/findEntries")
+local filterFullyReadMangas = require("utils/filterFullyReadMangas")
 local findLastRead = require("utils/findLastRead")
 local getChapterDisplayName = require("utils/getChapterDisplayName")
 local filterChaptersByLang = require("utils/filterChaptersByLang")
@@ -61,6 +62,7 @@ local formatBytes = require("utils/formatBytes")
 
 local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
 local SMALL_FONT_FACE = Font:getFace("smallffont")
+local HIDE_FULLY_READ_MANGA_KEY = "rakuyomi_hide_read_manga"
 local INCLUDED_SEARCH_SOURCES_KEY = "rakuyomi_search_included_source_ids"
 local LEGACY_EXCLUDED_SEARCH_SOURCES_KEY = "exlucde_source_ids_select_search"
 
@@ -399,8 +401,15 @@ end
 
 --- @private
 function LibraryView:updateItems()
-  if #self.mangas > 0 then
-    self.item_table = self:generateItemTableFromMangas(self.mangas)
+  local mangas = filterFullyReadMangas(
+    self.mangas,
+    G_reader_settings:isTrue(HIDE_FULLY_READ_MANGA_KEY),
+    self.current_playlist ~= nil
+  )
+  self.visible_mangas = mangas
+
+  if #mangas > 0 then
+    self.item_table = self:generateItemTableFromMangas(mangas)
     self.multilines_show_more_text = false
     self.single_line = true
     self.items_per_page = nil
@@ -531,7 +540,7 @@ function LibraryView:fetchAndShow(playlist, on_after_open, options)
   UIManager:show(lv)
 
   if options and options.focus_manga_id then
-    for i, item in ipairs(lv.mangas or {}) do
+    for i, item in ipairs(lv.visible_mangas or {}) do
       if item.id == options.focus_manga_id
           and item.source and item.source.id == options.focus_manga_source_id then
         lv.itemnumber = i
@@ -1169,6 +1178,23 @@ function LibraryView:openMenu()
       },
     },
   }
+
+  if not self.current_playlist then
+    table.insert(buttons, 4, {
+      {
+        text = G_reader_settings:isTrue(HIDE_FULLY_READ_MANGA_KEY)
+            and (Icons.FA_CHECK .. " " .. _("Show fully read manga"))
+          or (Icons.FA_BOOK .. " " .. _("Hide fully read manga")),
+        callback = function()
+          UIManager:close(dialog)
+
+          local enabled = not G_reader_settings:isTrue(HIDE_FULLY_READ_MANGA_KEY)
+          G_reader_settings:saveSetting(HIDE_FULLY_READ_MANGA_KEY, enabled)
+          self:updateItems()
+        end
+      },
+    })
+  end
 
   dialog = ButtonDialog:new {
     buttons = buttons,

@@ -118,6 +118,15 @@ Settings.setting_value_definitions = {
     }
   },
   {
+    'rakuyomi_hide_read_manga',
+    {
+      type = 'boolean',
+      title = _("Hide fully read manga"),
+      default = false,
+      is_local = true,
+    }
+  },
+  {
     'rakuyomi_items_per_page',
     {
       type = 'integer',
