@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: All approved runtime outcomes are merged; repository cleanup and final KindleHF validation remain
+- Status: All approved runtime outcomes and tracked cleanup are complete; final KindleHF validation remains
 - Active gate: All six gates are pre-approved for the bounded fork-only program
 - Last verified: 2026-09-01
-- Active change: `codex/update-rebuild-record`
+- Active change: `codex/repository-cleanup`
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -41,8 +41,8 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Synchronize the root plan and specifications with the merged rebuild |
-| Classification | Fork-only governance and specification |
+| Active outcome | Remove proven unused tracked repository material |
+| Classification | Fork-only repository cleanup |
 | Gate 1 | Pre-approved; upstream and fork state verified |
 | Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
 | Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
@@ -65,7 +65,18 @@ Do not combine these steps in one branch or PR.
 | 4 | Promote the qualified clean lineage to default `main` | Complete | `main` moved to `8c732a3`; old `main` archived exactly |
 | 5 | Refresh the clean lineage to stable upstream v1.41.4 | Complete | Fork PR #7 merged at `b7d97c8`; every platform build passed; release skipped |
 | 6 | Reassess and rebuild every approved specification in isolated fork PRs | Complete | Fork PRs #8-#25 and #28-#29 merged; PR #27 contains isolated test maintenance |
-| 7 | Remove only approved unnecessary repository material | Next | Separate evidence-based cleanup PR, followed by a fresh exact-main build |
+| 7 | Remove only approved unnecessary repository material | Complete in cleanup change | Eight tracked files removed from three proven-unused groups; final CI and merge required |
+
+### Cleanup removal matrix
+
+| Candidate | Classification and evidence | Decision |
+|---|---|---|
+| `.github/workflows/issue-label-flow.yml%`, `.github/workflows/test.yml%` | Disabled copies: the `%` suffix prevents GitHub from treating them as workflows; neither is referenced; active build, CI, and Lua workflows cover current checks | Remove |
+| `mv_frontend.sh`, `mv_linux.sh` | Superseded and unreferenced copy shortcuts; the documented development environment and `tools/` commands provide the maintained paths | Remove |
+| `.opencode/`, `prompts/`, `skills/` | Four tool-specific or raw AI working notes; no runtime, build, CI, documentation, or current agent configuration references them | Remove |
+| `telegram-cookie-bot/` | Product companion referenced by the root README and its deployment workflow | Retain |
+| `ci/`, `packages/`, `tools/`, Nix/devenv, editor and external-service configuration | Referenced by builds, documented development commands, or filename-based integrations | Retain |
+| Ignored `dist/` recovery material | Unique recovery evidence is not yet proven archived elsewhere | Retain; never include in tracked cleanup |
 
 ## 4. Ordered feature backlog
 
@@ -309,8 +320,6 @@ the feature backlog has not been re-ranked.
 2. Ignored recovery material under `dist/` includes unique databases, source
    packages, settings, mappings, and poster repairs. It is not approved for
    deletion and has not yet been verified in an external archive.
-3. Two tracked workflow filenames ending in `%` are cleanup candidates only;
-   their purpose and references have not yet been proven.
 
 ## 9. Decisions awaiting approval
 
@@ -321,10 +330,9 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Merge this documentation-only record after its checks pass. Then complete one
-evidence-based cleanup PR, run the Build workflow from the resulting exact fork
-`main`, download and verify its KindleHF artifact, and perform the bounded
-on-device checks. Do not open upstream PRs or releases.
+Merge the cleanup PR after all checks pass. Then run the Build workflow from the
+resulting exact fork `main`, download and verify its KindleHF artifact, and
+perform the bounded on-device checks. Do not open upstream PRs or releases.
 
 ## 11. Historical references
 
