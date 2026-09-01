@@ -1,6 +1,6 @@
 # RakuYomi Source Management Specification
 
-- Status: Accepted for the fork-only v1.41.4 rebuild
+- Status: Implemented in isolated fork PRs; final exact-commit Kindle validation pending
 - Baseline: upstream `v1.41.4` at `df0ef29fc07d87966a1a2558ab257743f29efaf4`
 - Scope: source inventory, catalog, failure handling, management, search, and diagnosis
 - Excluded: automatic source changes and canonical-id migration
@@ -39,6 +39,24 @@ The following gaps remain:
 - grid search results do not consistently show source identity;
 - search stores exclusions instead of a direct included-source selection;
 - diagnosis is not an explicit bounded operation.
+
+These are gaps in the pinned upstream baseline, not the current fork. The fork
+implementation record is:
+
+| Contract slice | Fork PR | State |
+|---|---:|---|
+| Per-file loading and truthful inventory | #11 | Merged; checks passed |
+| Missing-source library and playlist visibility | #12 | Merged; checks passed |
+| Uninstall preview and stale-count guard | #13 | Merged; checks passed |
+| Catalog cache, exact provenance, and deterministic selection | #14 | Merged; checks passed |
+| Rollback-safe package replacement | #15 | Merged; checks passed |
+| Structured summaries and bounded health | #16 | Merged; checks passed |
+| Complete source status UI | #17 | Merged; checks passed |
+| Explicit included-source search | #18 | Merged; checks passed |
+| Guarded source-list controls | #19 | Merged; checks passed |
+| Bounded read-only diagnosis | #20 | Merged; checks passed |
+
+The final combined KindleHF artifact and on-device checks remain Gate 5 work.
 
 ## 3. Invariants
 
