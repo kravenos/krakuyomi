@@ -453,6 +453,18 @@ function LibraryView:generateItemTableFromMangas(mangas)
   local item_table = {}
   local is_cover = self:getLibraryViewMode() == "cover"
 
+  local metadata_keys = G_reader_settings:readSetting(
+    "rakuyomi_tile_metadata",
+    { "last_read", "unread" }
+  )
+  if type(metadata_keys) ~= "table" then
+    metadata_keys = { "last_read", "unread" }
+  end
+  local selected = {}
+  for _, key in ipairs(metadata_keys) do
+    selected[key] = true
+  end
+
   for _, manga in ipairs(mangas) do
     local mandatory_parts = {}
 
@@ -460,7 +472,7 @@ function LibraryView:generateItemTableFromMangas(mangas)
       table.insert(mandatory_parts, manga.source.name)
     end
 
-    if manga.last_read then
+    if selected.last_read and manga.last_read then
       local text = calcLastReadText(manga.last_read, self:getLibraryViewMode() ~= "base")
       if not is_cover then
         text = text .. " "
@@ -468,12 +480,26 @@ function LibraryView:generateItemTableFromMangas(mangas)
       table.insert(mandatory_parts, text)
     end
 
-    if manga.unread_chapters_count ~= nil and manga.unread_chapters_count > 0 then
+    if selected.unread and manga.unread_chapters_count ~= nil and manga.unread_chapters_count > 0 then
       local bell = Icons.FA_BELL
       if is_cover then
         bell = bell .. " "
       end
       table.insert(mandatory_parts, bell .. manga.unread_chapters_count)
+    end
+
+    local total = manga.total_chapters_count
+    local read = manga.read_chapters_count
+    if (selected.read and read ~= nil) or (selected.total and total ~= nil) then
+      local text
+      if selected.read and selected.total and read ~= nil and total ~= nil then
+        text = read .. "/" .. total
+      elseif selected.read and read ~= nil then
+        text = Icons.FA_CHECK .. (is_cover and " " or "") .. read
+      else
+        text = Icons.FA_LIST .. (is_cover and " " or "") .. total
+      end
+      table.insert(mandatory_parts, text)
     end
 
     local space = is_cover and "  " .. Icons.DOT .. "  " or ""
@@ -632,9 +658,8 @@ function LibraryView:onContextMenuChoice(item)
         callback = function()
           UIManager:close(dialog_context_menu)
 
-          ChapterListing:openMarkDialog(manga, true, function(count)
-            manga.unread_chapters_count = count
-            self:updateItems()
+          ChapterListing:openMarkDialog(manga, true, function()
+            self:_refreshMangas()
           end)
         end
       },
@@ -643,9 +668,8 @@ function LibraryView:onContextMenuChoice(item)
         callback = function()
           UIManager:close(dialog_context_menu)
 
-          ChapterListing:openMarkDialog(manga, false, function(count)
-            manga.unread_chapters_count = count
-            self:updateItems()
+          ChapterListing:openMarkDialog(manga, false, function()
+            self:_refreshMangas()
           end)
         end
       }
@@ -1591,6 +1615,34 @@ function LibraryView:openCookieSyncView()
     }:fetchAndShow()
     self:onClose(true)
   end)
+end
+
+--- Refreshes library counts while preserving the active title search.
+--- @private
+function LibraryView:_refreshMangas()
+  local mangas = self:fetchMangas()
+  if not mangas then
+    return
+  end
+
+  self.mangas_raw = mangas
+
+  local query = self.favorite_search_keyword
+  query = query and query:match("^%s*(.-)%s*$"):lower()
+  if query and query ~= "" then
+    local filtered = {}
+    for _, manga in ipairs(mangas) do
+      local title = (manga.title or ""):lower()
+      if title:find(query, 1, true) then
+        table.insert(filtered, manga)
+      end
+    end
+    self.mangas = filtered
+  else
+    self.mangas = mangas
+  end
+
+  self:updateItems()
 end
 
 return LibraryView

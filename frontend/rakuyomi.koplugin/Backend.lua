@@ -285,6 +285,8 @@ end
 --- @field title string The title of this manga.
 --- @field manga_cover string|nil The cover of this manga.
 --- @field unread_chapters_count number|nil The number of unread chapters for this manga, or `nil` if we do not know how many chapters this manga has.
+--- @field total_chapters_count number|nil The number of cached chapters after scanlator filtering, or `nil` if unknown.
+--- @field read_chapters_count number|nil The number of cached chapters explicitly marked as read, or `nil` if unknown.
 --- @field last_read number|nil The timestamp (in seconds since epoch) of when this manga was last read, or `nil` if we don't know.
 --- @field in_library boolean Whether this manga is in the user's library.
 --- @field viewer MangaViewer The preferred viewer mode from the source ("DefaultViewer", "Rtl", "Ltr", "Vertical", "Scroll").

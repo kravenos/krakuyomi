@@ -127,6 +127,21 @@ Settings.setting_value_definitions = {
     }
   },
   {
+    'rakuyomi_tile_metadata',
+    {
+      type = 'multi-enum',
+      title = _("Tile metadata"),
+      options = {
+        { label = _("Last read time"), value = "last_read" },
+        { label = _("Unread count"),   value = "unread" },
+        { label = _("Read count"),     value = "read" },
+        { label = _("Total chapters"), value = "total" },
+      },
+      default = { "last_read", "unread" },
+      is_local = true,
+    }
+  },
+  {
     'rakuyomi_items_per_page',
     {
       type = 'integer',
