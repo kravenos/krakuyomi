@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: Stable v1.41.4 baseline merged; current-spec audit is ready for its fork-only PR
+- Status: All approved runtime outcomes are merged; repository cleanup and final KindleHF validation remain
 - Active gate: All six gates are pre-approved for the bounded fork-only program
-- Last verified: 2026-08-29
-- Active change: `codex/specify-v1.41.4-rebuild`
+- Last verified: 2026-09-01
+- Active change: `codex/update-rebuild-record`
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -18,12 +18,12 @@ feature behavior in separately approved feature specifications.
 | Upstream branch | `main` at `66d592f5118d00ef899a049032f5cad0c6ace2c0`; one unreleased test-only commit beyond the pinned baseline |
 | Pinned upstream release | [`v1.41.4`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.41.4) at `df0ef29fc07d87966a1a2558ab257743f29efaf4` |
 | Fork | `kravenos/krakuyomi` |
-| Clean rebuild branch | Fork `main` at `b7d97c8faa6c47b9dd18ac12ad372b04c41c43e7`; contains exact upstream v1.41.4 plus fork governance and adapted release control |
-| Fork default branch | `main` at `b7d97c8faa6c47b9dd18ac12ad372b04c41c43e7` after fork PR #7 |
+| Clean rebuild branch | Fork `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b`; contains the pinned upstream v1.41.4 baseline plus the isolated rebuild outcomes |
+| Fork default branch | `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b` after fork PR #29 |
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
 | Fork release baseline tag | `v1.41.4` points exactly to upstream release commit `df0ef29`; no GitHub release exists |
-| Rebuild-branch CI | PR #7 passed Rust, Lua, schema generation, and nine platform jobs; the release job was skipped |
+| Latest feature CI | PR #29 passed Rust, Lua, schema generation, and all nine platform jobs including KindleHF; release publication was skipped |
 
 The v1.41.4 release commit `df0ef29` adds release metadata to code parent
 `9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
@@ -41,15 +41,15 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Record the audited v1.41.4 rebuild and source-management contract |
+| Active outcome | Synchronize the root plan and specifications with the merged rebuild |
 | Classification | Fork-only governance and specification |
 | Gate 1 | Pre-approved; upstream and fork state verified |
 | Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
 | Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
-| Gate 4 | Documentation complete on `codex/specify-v1.41.4-rebuild`; exact-diff review passed |
-| Gate 5 | Final combined KindleHF artifact after all isolated outcomes |
+| Gate 4 | Approved runtime implementation complete through fork PR #29; every merged feature had green checks |
+| Gate 5 | Final exact-commit KindleHF artifact and on-device validation after documentation and cleanup |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
-| Branch base | Fork PR #7 head `a43747e`, now an ancestor of fork `main` `b7d97c8` |
+| Branch base | Fork `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b` |
 | Intended fork PR target | `main` |
 | Intended upstream target | None; the complete program is fork-only |
 
@@ -64,8 +64,8 @@ Do not combine these steps in one branch or PR.
 | 3 | Freeze automatic fork releases while preserving CI artifacts | Complete | Merged through fork PR #5; v1.39.6 tag baseline added |
 | 4 | Promote the qualified clean lineage to default `main` | Complete | `main` moved to `8c732a3`; old `main` archived exactly |
 | 5 | Refresh the clean lineage to stable upstream v1.41.4 | Complete | Fork PR #7 merged at `b7d97c8`; every platform build passed; release skipped |
-| 6 | Reassess and rebuild every approved specification in isolated fork PRs | Audit complete | Publish the documentation-only audit PR, then runtime PRs may proceed |
-| 7 | Remove only approved unnecessary repository material | Deferred | Separate evidence-based cleanup after the final build |
+| 6 | Reassess and rebuild every approved specification in isolated fork PRs | Complete | Fork PRs #8-#25 and #28-#29 merged; PR #27 contains isolated test maintenance |
+| 7 | Remove only approved unnecessary repository material | Next | Separate evidence-based cleanup PR, followed by a fresh exact-main build |
 
 ## 4. Ordered feature backlog
 
@@ -75,23 +75,23 @@ Do not re-rank merely because a branch was opened or CI passed.
 
 | Priority | Outcome | Default classification | State | Rationale or prerequisite |
 |---:|---|---|---|---|
-| 1 | Atomic settings writes | Upstream candidate | Queued | Prevent interrupted saves from truncating configuration |
-| 2 | Corrupt-settings recovery and last-known-good backup | Upstream candidate | Queued | Recover source lists and preserve corrupt evidence |
+| 1 | Atomic settings writes | Upstream candidate | Merged in PR #9 | Prevent interrupted saves from truncating configuration |
+| 2 | Corrupt-settings recovery and last-known-good backup | Upstream candidate | Merged in PR #10 | Recover source lists and preserve corrupt evidence |
 | 3 | Nil and unknown Settings value safety | Use upstream | Supplied by v1.41.4 | Current widgets safely handle nil, unknown, and wrong-type values |
 | 4 | Remove the source package and metadata sidecar together | Use upstream | Supplied by v1.41.4 | Uninstall covers package, metadata, and probe files for all four source families |
-| 5 | Keep missing-source library entries visible | Upstream candidate | Queued | Preserve visible access to user-owned membership and progress |
-| 6 | Warn before uninstall with affected manga count | Upstream candidate | Queued | Make orphaning consequences explicit before action |
-| 7 | Preserve and aggregate source errors honestly | Upstream candidate | Queued | Replace repeated opaque failures with actionable source summaries |
-| 8 | Hide fully read manga | Upstream candidate | Queued | Restore approved library filtering without altering membership |
-| 9 | Reading direction | Upstream candidate | Queued | Restore one independently reviewable reader preference |
-| 10 | Page-turn style | Upstream candidate | Queued | Restore one independently reviewable reader preference |
-| 11 | Back to library | Upstream candidate | Queued | Restore one independently reviewable navigation outcome |
-| 12 | Configurable library tile metadata | Upstream candidate | Queued | Restore useful counts without N+1 database work |
-| 13 | Deterministic source provenance and catalog selection | Upstream candidate | Queued | Make provider and version choice exact and reproducible |
-| 14 | Source update visibility and source-list management | Upstream candidate | Partially supplied | v1.41.4 adds basic version display and list add/remove; cache, exact URLs, ordering, disable, coverage preview, export, and import remain |
-| 15 | Diagnostics and source-aware search improvements | Upstream candidate | Queued | Diagnose bounded failures and preserve source identity in search |
-| 16 | Manga-tap action dialog | Fork-only | Queued | Retain both Continue Reading and Chapter List without hiding either action |
-| 17 | Downloaded storage total in the library title | Fork-only | Queued | Reuse the existing aggregate endpoint; no per-item work |
+| 5 | Keep missing-source library entries visible | Upstream candidate | Merged in PR #12 | Preserve visible access to user-owned membership and progress |
+| 6 | Warn before uninstall with affected manga count | Upstream candidate | Merged in PR #13 | Make orphaning consequences explicit before action |
+| 7 | Preserve and aggregate source errors honestly | Upstream candidate | Merged in PRs #11 and #16 | Replace repeated opaque failures with actionable source summaries |
+| 8 | Hide fully read manga | Upstream candidate | Merged in PR #21 | Restore approved library filtering without altering membership |
+| 9 | Reading direction | Upstream candidate | Merged in PR #22 | Restore one independently reviewable reader preference |
+| 10 | Page-turn style | Upstream candidate | Merged in PR #23 | Restore one independently reviewable reader preference |
+| 11 | Back to library | Upstream candidate | Merged in PR #24 | Restore one independently reviewable navigation outcome |
+| 12 | Configurable library tile metadata | Upstream candidate | Merged in PR #25 | Restore useful counts without N+1 database work |
+| 13 | Deterministic source provenance and catalog selection | Upstream candidate | Merged in PRs #14-#15 | Make provider and version choice exact and reproducible |
+| 14 | Source update visibility and source-list management | Upstream candidate | Merged in PRs #17 and #19 | Complete status and guarded list controls |
+| 15 | Diagnostics and source-aware search improvements | Upstream candidate | Merged in PRs #18 and #20 | Bounded diagnosis and direct included-source selection |
+| 16 | Manga-tap action dialog | Fork-only | Merged in PR #28; device review pending | Retain both Continue Reading and Chapter List without hiding either action |
+| 17 | Downloaded storage total in the library title | Fork-only | Merged in PR #29; device review pending | Reuse the existing aggregate endpoint; no per-item work |
 | 18 | Collection cover tiles | No accepted behavior | Not scheduled | The historical documents only said to consider this idea |
 | 19 | Long grid-title wrapping/shrinking | Use upstream | Supplied by v1.41.4 | Current grid and menu widgets already include bounded multiline/shrink behavior |
 
@@ -126,8 +126,14 @@ page-turn style, and Back to library remain separate branches and PRs.
 
 | Branch or PR | Base or target | Purpose | State | Publication constraint |
 |---|---|---|---|---|
+| [Fork PR #29](https://github.com/kravenos/krakuyomi/pull/29) | Fork `main` | Downloaded storage total | Merged at `096de31`; all checks passed including KindleHF | Fork-only; never release |
+| [Fork PRs #21-#25 and #28](https://github.com/kravenos/krakuyomi/pulls?q=is%3Apr+is%3Amerged) | Fork `main` | Library and reader outcomes | Merged as isolated PRs; all required checks passed | Fork-only program; no upstream PRs opened |
+| [Fork PRs #11-#20](https://github.com/kravenos/krakuyomi/pulls?q=is%3Apr+is%3Amerged) | Fork `main` | Source-management specification | Merged as isolated PRs; all required checks passed | Fork-only program; no upstream PRs opened |
+| [Fork PRs #9-#10](https://github.com/kravenos/krakuyomi/pulls?q=is%3Apr+is%3Amerged) | Fork `main` | Atomic settings and corruption recovery | Merged as isolated PRs; all required checks passed | Fork-only program; no upstream PRs opened |
+| [Fork PR #8](https://github.com/kravenos/krakuyomi/pull/8) | Fork `main` | Current v1.41.4 rebuild and source-management specifications | Merged at `bde20d7` | Fork-only; never upstream |
+| [Fork PR #27](https://github.com/kravenos/krakuyomi/pull/27) | Fork `main` | Make unreliable live LNReader website smoke tests opt-in | Merged at `fbed8fd`; deterministic CI remains mandatory | Fork-only maintenance |
 | [Fork PR #7](https://github.com/kravenos/krakuyomi/pull/7), `codex/sync-upstream-v1.41.4` | Fork `main` at `8c732a3` | Merge exact stable upstream v1.41.4 and retain manual release control | Merged at `b7d97c8`; all checks passed; release skipped | Fork-only; never release |
-| `codex/specify-v1.41.4-rebuild` | Fork `main` | Record the current audit and accepted source-management contract | Documentation complete; fork PR pending | Fork-only; never upstream |
+| [Fork PR #8](https://github.com/kravenos/krakuyomi/pull/8), `codex/specify-v1.41.4-rebuild` | Fork `main` | Record the current audit and accepted source-management contract | Merged at `bde20d7` | Fork-only; never upstream |
 | `codex/update-rebuild-plan` | Target `codex/upstream-rebuild` | Record completed qualification, release control, and tag baseline | Merged through fork PR #6 at `8c732a3` | Fork-only |
 | [Fork PR #5](https://github.com/kravenos/krakuyomi/pull/5), `codex/freeze-automatic-releases` | Target `codex/upstream-rebuild` | Preserve builds while requiring deliberate release publication | Squash-merged at `330d367` | Fork-only; no release created |
 | [Fork PR #4](https://github.com/kravenos/krakuyomi/pull/4), `codex/qualify-upstream-baseline` | Target `codex/upstream-rebuild` | Artifact, backup, and Kindle qualification evidence | Squash-merged at `95781ce` | Fork-only |
@@ -136,7 +142,8 @@ page-turn style, and Back to library remain separate branches and PRs.
 | `codex/archive-pre-upstream-rebuild-2026-07-31` | Archive `44794ff` | Historical recovery point | Preserved locally and remotely | Never merge wholesale |
 | [Fork PR #2](https://github.com/kravenos/krakuyomi/pull/2), `test/bridge-url-fix` to old `main` | Old fork lineage | Legacy test/fix work | Closed as superseded; source branch retained | Never merge wholesale |
 
-No upstream candidate is active or awaiting review; all authorized work is fork-only.
+No upstream PR was opened. The labels above describe future suitability only;
+this complete unattended program remains fork-only.
 
 ## 6. Verification evidence
 
@@ -145,6 +152,9 @@ No upstream candidate is active or awaiting review; all authorized work is fork-
 | Upstream v1.41.4 Build | `9b06ec2d0cce4fa93e9f04c07e5b115a92f9fe84` | Passed | Upstream run 33117913535 produced the stable release artifacts |
 | Upstream v1.41.4 release | `df0ef29fc07d87966a1a2558ab257743f29efaf4` | Passed | Published stable on 2026-08-27; not copied as a fork release |
 | Fork v1.41.4 refresh | [Fork PR #7](https://github.com/kravenos/krakuyomi/pull/7) | Passed | Rust, Lua, schema, desktop, macOS, three Kindle, and three Android jobs passed; release skipped; merged at `b7d97c8` |
+| Isolated runtime rebuild | Fork PRs #9-#25 and #28-#29 | Passed in CI | Every accepted runtime outcome was merged separately; the latest PR passed Rust, Lua, schema, desktop, macOS, three Kindle, and three Android jobs |
+| Live-network test maintenance | [Fork PR #27](https://github.com/kravenos/krakuyomi/pull/27) | Passed | Existing external LNReader website smoke tests are opt-in; deterministic coverage remains active |
+| Latest KindleHF build | PR #29 commit `6d3f8ea071b3537eb1f80ac67cef080dfaa46dc6` | Passed in CI | Packaging passed; final exact-`main` artifact and on-device validation remain |
 | Fork v1.41.4 tag | `v1.41.4` at `df0ef29fc07d87966a1a2558ab257743f29efaf4` | Passed | Exact upstream release tag commit; no fork GitHub release created |
 | v1.41.4 fork snapshot scope | `c9869e4` versus `v1.41.4` | Passed | Snapshot differs only in `.github/workflows/build.yml`, `PLAN.md`, and `SPEC.md` before the plan commit |
 | Upstream CI | `443652e1bb717ea546041497dff53531489537c0` | Passed | [Upstream run 30637032464](https://github.com/tachibana-shin/rakuyomi/actions/runs/30637032464) |
@@ -287,23 +297,19 @@ the feature backlog has not been re-ranked.
 | Work | Status |
 |---|---|
 | Upstream PRs #256-#259 | Accepted and supplied by the clean baseline |
-| Stable upstream refresh | v1.41.4 at `df0ef29`; exact code is being merged into the fork |
+| Stable upstream refresh | v1.41.4 at `df0ef29`; pinned baseline is present in fork `main` |
 | New upstream feature PRs | Prohibited for this unattended program |
 | Requested upstream revisions | None |
 | Fork governance documents | Intentionally never upstreamed |
 
 ## 8. Blockers and residual risks
 
-1. Upstream v1.41.4 materially rewrote source handling, so every historical
-   feature claim requires a fresh code-and-test audit before implementation.
-2. The final Kindle validation needs the device mounted and KOReader fully
+1. The final Kindle validation needs the device mounted and KOReader fully
    exited; automated evidence cannot substitute for Corvin's observed UI results.
-3. Ignored recovery material under `dist/` includes unique databases, source
+2. Ignored recovery material under `dist/` includes unique databases, source
    packages, settings, mappings, and poster repairs. It is not approved for
    deletion and has not yet been verified in an external archive.
-4. The archived source-management specification predates upstream 1.41.4 source
-   error changes; error-path claims require fresh discovery.
-5. Two tracked workflow filenames ending in `%` are cleanup candidates only;
+3. Two tracked workflow filenames ending in `%` are cleanup candidates only;
    their purpose and references have not yet been proven.
 
 ## 9. Decisions awaiting approval
@@ -315,10 +321,10 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Open and merge the documentation-only audit PR after its checks pass, then open
-the already isolated atomic-settings PR as the first runtime change. Continue
-one fork PR per accepted outcome and finish with one combined KindleHF build.
-Do not open upstream PRs or releases.
+Merge this documentation-only record after its checks pass. Then complete one
+evidence-based cleanup PR, run the Build workflow from the resulting exact fork
+`main`, download and verify its KindleHF artifact, and perform the bounded
+on-device checks. Do not open upstream PRs or releases.
 
 ## 11. Historical references
 

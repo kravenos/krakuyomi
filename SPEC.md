@@ -287,6 +287,23 @@ order defined by that specification:
 - consider collection cover tiles, long-title wrapping, and other optional UX
   only after higher-priority safety work.
 
+### Fork implementation record
+
+This table records what the fork has built on top of upstream v1.41.4. It does
+not change whether a result may later be proposed upstream.
+
+| Added by this rebuild | Fork PRs | Current state |
+|---|---|---|
+| Atomic settings writes and corrupt-settings recovery | #9-#10 | Merged; automated checks passed |
+| Truthful source inventory and missing-entry preservation | #11-#12 | Merged; automated checks passed |
+| Guarded uninstall, deterministic catalog, exact provenance, and rollback-safe replacement | #13-#15 | Merged; automated checks passed |
+| Structured operation health, complete source status, included-source search, list controls, and bounded diagnosis | #16-#20 | Merged; automated checks passed |
+| Hide fully read, reading direction, page-turn style, Back to library, and configurable tile metadata | #21-#25 | Merged; automated checks passed |
+| Manga action dialog and downloaded storage total | #28-#29 | Merged; automated checks passed; final device review pending |
+
+PR #27 separately made two live third-party LNReader website smoke tests opt-in
+after repeated external failures. It did not weaken deterministic source tests.
+
 ## 12. Detailed specifications and historical evidence
 
 Use these immutable archive records as evidence:
