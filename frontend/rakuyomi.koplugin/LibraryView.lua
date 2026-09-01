@@ -39,6 +39,7 @@ local findEntries = require("utils/findEntries")
 local filterFullyReadMangas = require("utils/filterFullyReadMangas")
 local findLastRead = require("utils/findLastRead")
 local getChapterDisplayName = require("utils/getChapterDisplayName")
+local getLibraryStorageTitle = require("utils/getLibraryStorageTitle")
 local filterChaptersByLang = require("utils/filterChaptersByLang")
 local md5 = require("ffi/sha2").md5
 local DataStorage = require("datastorage")
@@ -1236,7 +1237,15 @@ function LibraryView:openMenu()
     })
   end
 
+  local title = getLibraryStorageTitle(
+    Backend.getStorageStats(),
+    Icons.FA_DOWNLOAD .. " " .. _("Total downloaded"),
+    formatBytes
+  )
+
   dialog = ButtonDialog:new {
+    title = title,
+    title_align = "center",
     buttons = buttons,
   }
 
