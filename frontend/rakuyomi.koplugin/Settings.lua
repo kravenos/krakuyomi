@@ -221,6 +221,19 @@ Settings.setting_value_definitions = {
     { type = 'divider', title = _("Reader") }
   },
   {
+    'rakuyomi_reading_direction',
+    {
+      type = 'enum',
+      title = _("Reading direction"),
+      options = {
+        { label = _("Left to right"), value = "ltr" },
+        { label = _("Right to left"), value = "rtl" },
+      },
+      default = "ltr",
+      is_local = true,
+    }
+  },
+  {
     'chapter_sorting_mode',
     {
       type = 'enum',
