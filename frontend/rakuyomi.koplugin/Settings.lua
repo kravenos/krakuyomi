@@ -234,6 +234,19 @@ Settings.setting_value_definitions = {
     }
   },
   {
+    'rakuyomi_page_turn_style',
+    {
+      type = 'enum',
+      title = _("Page turn style"),
+      options = {
+        { label = _("Paginated"), value = "paginated" },
+        { label = _("Continuous scroll"), value = "scroll" },
+      },
+      default = "paginated",
+      is_local = true,
+    }
+  },
+  {
     'chapter_sorting_mode',
     {
       type = 'enum',
