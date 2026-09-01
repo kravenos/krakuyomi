@@ -71,6 +71,9 @@ async def test_library_view(koreader_driver: KOReaderDriver):
         LocateButtonResponse
     )
     koreader_driver.click_element(location)
+
+    chapter_list_button = await queries.locate_button(koreader_driver, "List chapters")
+    koreader_driver.click_element(chapter_list_button)
     await koreader_driver.wait_for_event('chapter_listing_shown')
 
     back_button = await queries.locate_button(koreader_driver, "Back")
