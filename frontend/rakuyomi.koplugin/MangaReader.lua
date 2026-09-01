@@ -9,6 +9,7 @@ local _ = require("gettext+")
 local Backend = require("Backend")
 local applyReadingDirection = require("utils/applyReadingDirection")
 local getPageTurnStyleChange = require("utils/getPageTurnStyleChange")
+local selectBackToLibraryCallback = require("utils/selectBackToLibraryCallback")
 local shallow_clone = require("utils/shallowClone")
 local CbzDocument = require("extensions/CbzDocument")
 
@@ -27,6 +28,7 @@ local Testing = require('testing')
 --- This is a singleton that contains a simpler interface with ReaderUI.
 local MangaReader = {
   on_return_callback = nil,
+  on_back_to_library_callback = nil,
   on_end_of_book_callback = nil,
   on_beginning_of_book_callback = nil,
   on_close_book_callback = nil,
@@ -36,7 +38,8 @@ local MangaReader = {
 
 --- @class MangaReaderOptions
 --- @field path string Path to the file to be displayed.
---- @field on_return_callback fun(): nil Function to be called when the user selects "Go back to Rakuyomi".
+--- @field on_return_callback fun(): nil Function to be called when the user returns to the chapter list.
+--- @field on_back_to_library_callback? fun(): nil Function to be called when the user returns directly to the library.
 --- @field on_end_of_book_callback fun(no_as_read: boolean): nil Function to be called when the user reaches the end of the file.
 --- @field on_beginning_of_book_callback? fun(): nil Function to be called when the user navigates before the first page.
 --- @field on_rtl_changed fun(viewer: MangaViewer): nil Function to be called when the RTL setting is toggled.
@@ -53,6 +56,7 @@ local MangaReader = {
 --- @param options MangaReaderOptions
 function MangaReader:show(options)
   self.on_return_callback = options.on_return_callback
+  self.on_back_to_library_callback = options.on_back_to_library_callback
   self.on_end_of_book_callback = options.on_end_of_book_callback
   self.on_beginning_of_book_callback = options.on_beginning_of_book_callback
   self.on_rtl_changed = options.on_rtl_changed
@@ -213,15 +217,22 @@ function MangaReader:hookWithPriorityOntoReaderUiEvents(ui)
   self:addRakuOptionsToReader(ui)
 end
 
---- Used to add the "Go back to Rakuyomi" menu item. Is called from `ReaderUI`, via the
+--- Adds the chapter-list and library return choices. Is called from `ReaderUI`, via the
 --- `registerToMainMenu` call done in `initializeFromReaderUI`.
 --- @private
 function MangaReader:addToMainMenu(menu_items)
   menu_items.go_back_to_rakuyomi = {
-    text = _("Go back to Rakuyomi..."),
+    text = _("Back to chapter list..."),
     sorting_hint = "main",
     callback = function()
       self:onReturn()
+    end
+  }
+  menu_items.go_back_to_rakuyomi_library = {
+    text = _("Back to library..."),
+    sorting_hint = "main",
+    callback = function()
+      self:onReturnToLibrary()
     end
   }
 end
@@ -231,6 +242,15 @@ function MangaReader:onReturn()
   self:closeReaderUi(function()
     self.on_return_callback()
   end)
+end
+
+--- @private
+function MangaReader:onReturnToLibrary()
+  local callback = selectBackToLibraryCallback(
+    self.on_back_to_library_callback,
+    self.on_return_callback
+  )
+  self:closeReaderUi(callback)
 end
 
 function MangaReader:closeReaderUi(done_callback)
@@ -261,6 +281,7 @@ end
 --- @private
 function MangaReader:clean()
   self.on_return_callback = nil
+  self.on_back_to_library_callback = nil
   self.chapter = nil
   self.chapters = nil
   self.viewer = nil

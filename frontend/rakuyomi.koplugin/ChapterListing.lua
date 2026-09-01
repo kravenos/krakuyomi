@@ -1089,6 +1089,7 @@ function ChapterListing:openChapterOnReader(chapter, download_job, on_opened)
         end)
       end,
       on_return_callback = onReturnCallback,
+      on_back_to_library_callback = self.on_return_callback,
     })
 
     if self.preload_count > 0 then
