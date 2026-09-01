@@ -7,6 +7,7 @@ local Trapper = require("ui/trapper")
 local logger = require("logger")
 local _ = require("gettext+")
 local Backend = require("Backend")
+local applyReadingDirection = require("utils/applyReadingDirection")
 local shallow_clone = require("utils/shallowClone")
 local CbzDocument = require("extensions/CbzDocument")
 
@@ -94,7 +95,23 @@ function MangaReader:show(options)
 
   -- re set because hook end book
   self.is_showing = true
+  UIManager:nextTick(function()
+    local ok, err = pcall(function()
+      self:applyReadingDirectionPreference()
+    end)
+    if not ok then
+      logger.warn("Unable to apply RakuYomi reading direction:", err)
+    end
+  end)
   Testing:emitEvent('manga_reader_shown')
+end
+
+--- Applies the reading direction only when the user explicitly selected one.
+--- @private
+function MangaReader:applyReadingDirectionPreference()
+  local direction = G_reader_settings:readSetting("rakuyomi_reading_direction")
+  local view = ReaderUI.instance and ReaderUI.instance.view
+  applyReadingDirection(view, direction)
 end
 
 --- @param ui unknown The `ReaderUI` instance we're being called from.
