@@ -80,6 +80,24 @@ Do not combine these steps in one branch or PR.
 
 ## 4. Ordered feature backlog
 
+Current execution checkpoint (2026-09-09): fork PR #34 contains the reader fix
+at `50ac7ed`; fork PR #35 contains the UI fix at `c2c11ae`. Both remain open for
+Kindle acceptance. `codex/kindle-reader-performance-preview` combines them for
+one manual installation without merging either PR into main. Combined local
+Lua 5.1/LuaJIT verification and CI must pass before handing over the package.
+
+MangaKatana: a bounded PC comparison used the public example chapter documented
+by the source author, not identifiers from Corvin's library. Same first image,
+589,032 bytes: Server 1 = 1.36 s (headers 1.33 s), Server 2 = 7.09 s (headers
+6.73 s), Server 3 = 0.16 s (headers 0.12 s). Page-list retrieval was 0.36-0.44 s.
+This is one sequential sample per server on a PC, not a Kindle benchmark or a
+universal server ranking. The installed v3 package already offers all three image
+servers and the author implementation sets Referer without custom image processing.
+Recommend a manual Server 3 comparison on Kindle; do not automatically replace
+the source, change its saved setting, or increase download concurrency. No download
+runtime change is justified by these samples alone. A private-library test was
+blocked before execution and still requires separate explicit permission.
+
 ### Approved follow-up fixes (2026-09-09)
 
 Corvin requested work on reading-direction persistence, MangaKatana download
@@ -433,8 +451,9 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Reprioritize the
 backlog before starting another feature; no next implementation is selected.
-The new UI-speed, chapter-direction, and download-speed reports above remain
-open; complete their diagnosis and agree priorities before implementation.
+The UI-speed and chapter-direction fixes are implemented in separate open fork
+PRs, with a combined preview for manual Kindle testing. MangaKatana needs an
+on-device image-server comparison before claiming its slowness is resolved.
 Corvin performs all file copies. Preserve recovery material and the release
 freeze. No upstream PRs or releases.
 
