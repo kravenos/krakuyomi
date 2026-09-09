@@ -49,6 +49,7 @@ pub struct ErrorResponse {
 impl AppError {
     pub fn from_search_mangas_error(value: SearchMangasError) -> Self {
         match value {
+            SearchMangasError::Cancelled => Self::Other(anyhow::anyhow!("Search cancelled.")),
             SearchMangasError::SourceError(e) => Self::NetworkFailure(e),
         }
     }

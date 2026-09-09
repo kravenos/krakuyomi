@@ -75,6 +75,31 @@ fn manifest_remains_available_while_aidoku_worker_is_busy() {
 #[cfg(feature = "all")]
 #[test]
 fn cancelled_search_returns_while_worker_is_busy_without_recording_source_failure() {
+    assert_search_while_worker_is_busy(SearchEnd::CancelBeforeStart);
+}
+
+#[cfg(feature = "all")]
+#[test]
+fn running_search_can_be_cancelled_while_worker_is_busy() {
+    assert_search_while_worker_is_busy(SearchEnd::CancelAfterStart);
+}
+
+#[cfg(feature = "all")]
+#[test]
+fn timed_out_search_returns_an_outcome_while_worker_is_still_busy() {
+    assert_search_while_worker_is_busy(SearchEnd::Timeout);
+}
+
+#[cfg(feature = "all")]
+#[derive(Clone, Copy)]
+enum SearchEnd {
+    CancelBeforeStart,
+    CancelAfterStart,
+    Timeout,
+}
+
+#[cfg(feature = "all")]
+fn assert_search_while_worker_is_busy(end: SearchEnd) {
     use crate::{
         chapter_storage::ChapterStorage, database::Database, model::SourceId,
         source_health::SourceHealthStore, usecases::search_mangas,
@@ -102,7 +127,9 @@ fn cancelled_search_returns_while_worker_is_busy_without_recording_source_failur
         settings.clone(),
     );
     let token = CancellationToken::new();
-    token.cancel();
+    if matches!(end, SearchEnd::CancelBeforeStart) {
+        token.cancel();
+    }
     let SourceBackend::Aidoku(worker) = &source.backend else {
         panic!("fixture must load the Aidoku backend");
     };
@@ -112,19 +139,23 @@ fn cancelled_search_returns_while_worker_is_busy_without_recording_source_failur
     let search = thread::spawn(move || {
         runtime.block_on(async move {
             started_tx.send(()).expect("signal search started");
-            let result = search_mangas(
+            let mut request = Box::pin(search_mangas(
                 &sources,
                 &db,
                 &chapter_storage,
                 &settings,
-                token,
+                token.clone(),
                 "fixture query".to_owned(),
                 &None,
                 1,
                 1,
                 &health,
-            )
-            .await;
+            ));
+            if matches!(end, SearchEnd::CancelAfterStart) {
+                assert!(futures::poll!(&mut request).is_pending());
+                token.cancel();
+            }
+            let result = request.await;
             let _ = finished_tx.send((result, health.summaries().await));
         });
     });
@@ -135,10 +166,31 @@ fn cancelled_search_returns_while_worker_is_busy_without_recording_source_failur
     drop(worker_guard);
     search.join().expect("search thread must not panic");
     started.expect("search should start within the test deadline");
-    let (_result, summaries) = result_while_busy
-        .expect("cancelled search must return before the busy worker releases its lock");
-    assert!(
-        summaries.is_empty(),
-        "user cancellation must not record a source success or failure"
-    );
+    let (result, summaries) =
+        result_while_busy.expect("search must return before the busy worker releases its lock");
+    if matches!(end, SearchEnd::Timeout) {
+        let (mangas, outcomes, has_next) = result.expect("timeout must produce a source outcome");
+        assert!(mangas.is_empty());
+        assert!(!has_next);
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].source_id, "fixture.busy");
+        assert_eq!(
+            outcomes[0].error.as_ref().unwrap().category,
+            crate::source_health::SourceErrorCategory::Timeout
+        );
+        assert_eq!(
+            summaries.len(),
+            1,
+            "timeout must be recorded in source health"
+        );
+    } else {
+        assert!(matches!(
+            result,
+            Err(crate::usecases::search_mangas::Error::Cancelled)
+        ));
+        assert!(
+            summaries.is_empty(),
+            "user cancellation must not record a source success or failure"
+        );
+    }
 }
