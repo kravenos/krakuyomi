@@ -284,8 +284,9 @@ order defined by that specification:
 - preserve, classify, aggregate, and bound source failure evidence;
 - expose complete source/list management and included-source search;
 - add bounded read-only diagnosis;
-- consider collection cover tiles, long-title wrapping, and other optional UX
-  only after higher-priority safety work.
+- long-title wrapping/shrinking is supplied by upstream v1.41.4; other optional
+  UX requires a separate backlog decision. Collection cover tiles were removed
+  from the backlog by Corvin on 2026-09-09 and are not planned.
 
 ### Fork implementation record
 

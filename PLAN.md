@@ -147,11 +147,68 @@ Do not re-rank merely because a branch was opened or CI passed.
 | 15 | Diagnostics and source-aware search improvements | Upstream candidate | Merged in PRs #18 and #20 | Bounded diagnosis and direct included-source selection |
 | 16 | Manga-tap action dialog | Fork-only | Merged in PR #28; device review pending | Retain both Continue Reading and Chapter List without hiding either action |
 | 17 | Downloaded storage total in the library title | Fork-only | Merged in PR #29; device review pending | Reuse the existing aggregate endpoint; no per-item work |
-| 18 | Collection cover tiles | No accepted behavior | Not scheduled | The historical documents only said to consider this idea |
 | 19 | Long grid-title wrapping/shrinking | Use upstream | Supplied by v1.41.4 | Current grid and menu widgets already include bounded multiline/shrink behavior |
 
 Translations and tests remain with the outcome they support. Reading direction,
 page-turn style, and Back to library remain separate branches and PRs.
+
+### Backlog review decisions
+
+- 2026-09-09: Corvin removed collection cover tiles from the backlog. This was
+  an unbuilt visual idea with no accepted requirements. Keep this decision as
+  history; no code or user data is removed.
+
+### New user reports and review recommendations (2026-09-09)
+
+Corvin reports slow UI, reading direction sometimes reverting to right-to-left
+at chapter boundaries, and very slow source downloads. These are open issues,
+not covered by the earlier successful search-repair retest. This is a diagnostic
+review only: no runtime changes, dependency removals, builds, transfers, PRs,
+or releases. Preserve all functionality and existing dependencies.
+
+Download follow-up: Corvin identifies MangaKatana as slower than other sources
+and says progress is slow throughout, rather than only before downloading starts.
+The preserved package identifies itself as `en.mangakatana` version 3. The progress
+counter advances after image retrieval/processing, just before each archive write;
+it is not a network-speed measurement. Prioritize timings per page (request setup,
+transfer, any source image processing, and storage) over startup-only theories.
+No source-specific processing requirement or server throttling is yet confirmed.
+
+Proposed order, not yet a new implementation commitment:
+
+1. Reading-direction persistence. `MangaReader.lua` applies viewer mode during
+   reader initialization and explicit direction in a separate next-tick callback;
+   the document-switch completion callback does not reapply that preference.
+   `Settings.lua` displays LTR as the unset default, while the runtime deliberately
+   does nothing for an unset preference. Confirm which control Corvin uses and
+   reproduce chapter transitions before choosing precedence or changing defaults.
+   Existing helper tests do not cover the document-switch lifecycle.
+2. UI responsiveness. `patch/MenuItemCover.lua:427` constructs two uncached image
+   widgets for each local cover: load for dimensions, then load/render for display.
+   Review single-load reuse, explicit image lifetime, and bounded caching. Library
+   loading also makes synchronous backend calls; the library route holds storage,
+   settings, and source-manager locks across database work. Measure cold/warm grid
+   loading, paging, menu opening, and memory before and after any isolated change.
+3. Download throughput. Pages already download concurrently, but batch chapters
+   run sequentially and each chapter creates a new HTTP client. Archive writes
+   are synchronous inside async code. The preserved debug settings show four
+   concurrent page requests, image optimization disabled, and grid view; current
+   device settings are not independently verified. Measure page-list retrieval,
+   network transfer, source processing, and storage separately. Consider connection
+   reuse and bounded scheduling only where measurements support them; retain
+   source headers, cookies, image processing, cancellation, and resource limits.
+
+For the older pending items: recommend retaining safe repository cleanup after
+verified preservation and documentation reconciliation; defer canonical-id repair
+until a real blocked manga needs it; remove historical missing-migration support
+from active work unless an affected database is demonstrated. These are proposals,
+not approved removals. Retain completed features and their tests as history, not
+as unfinished development. Collection cover tiles remain the sole approved drop.
+
+Static review identifies candidates, not measured Kindle speedups or a confirmed
+cause of the reported download slowness. Current official KOReader source was
+consulted for image-cache and reader callback semantics; the installed KOReader
+revision still needs matching before relying on lifecycle details.
 
 ### v1.41.4 audit summary
 
@@ -174,7 +231,7 @@ page-turn style, and Back to library remain separate branches and PRs.
 | Search source identity | Base/cover are supplied; grid and included-source selection remain |
 | Diagnosis | Missing; retain as bounded read-only work |
 | Canonical-id migration | Explicit later capability; not part of this rebuild |
-| Collection covers | Idea only; no accepted requirements, so no implementation |
+| Collection covers | Removed from the backlog by Corvin on 2026-09-09; no implementation |
 | Long grid titles | Current widgets already wrap/shrink; do not duplicate |
 
 ## 5. Branch and PR map
@@ -376,6 +433,8 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Reprioritize the
 backlog before starting another feature; no next implementation is selected.
+The new UI-speed, chapter-direction, and download-speed reports above remain
+open; complete their diagnosis and agree priorities before implementation.
 Corvin performs all file copies. Preserve recovery material and the release
 freeze. No upstream PRs or releases.
 
