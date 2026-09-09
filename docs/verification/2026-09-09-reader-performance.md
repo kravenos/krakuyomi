@@ -1,11 +1,25 @@
 # Kindle reader and performance retest
 
-Status: candidate build pending. Not a release. Fork PRs #34 (reading preferences)
-and #35 (cover rendering) remain separate; use their combined preview package.
+Status: accepted for current use by Corvin's report on 2026-09-09. Not a release.
+Fork PRs #34 (reading preferences) and #35 (cover rendering) remain separate and open.
 
 Candidate: `1.41.4+ci.93.fffe1c3`, from commit `fffe1c3` in
 [combined build 34356659856](https://github.com/kravenos/krakuyomi/actions/runs/34356659856).
-Wait for its `build (kindlehf, ubuntu-latest)` job to pass before installing.
+The KindleHF job, Rust CI and Lua CI passed. The overall run failed only in
+Android-aarch64 SDK emulator unpacking, before Android compilation.
+
+## Reported on-device result — 2026-09-09
+
+- MangaKatana Server 3 is "much faster"; retain that choice on this device.
+  No downloader code change or automatic source switching is needed now.
+- Reading direction "seems to be preserved"; accept the observed improvement,
+  without treating this as confirmation of every direction/restart case below.
+- UI has "some ui improvement" and is "fine for now". Further UI optimization
+  is deferred; no measured timing or universal speedup is claimed.
+
+These are Corvin's observations after the combined-package handoff, not tests
+independently witnessed by Codex. The full checklist below remains available for
+future regression testing; unreported checks are not marked passed.
 
 ## Manual installation
 

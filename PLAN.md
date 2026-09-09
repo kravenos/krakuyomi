@@ -81,10 +81,13 @@ Do not combine these steps in one branch or PR.
 ## 4. Ordered feature backlog
 
 Current execution checkpoint (2026-09-09): fork PR #34 contains the reader fix
-at `50ac7ed`; fork PR #35 contains the UI fix at `c2c11ae`. Both remain open for
-Kindle acceptance. `codex/kindle-reader-performance-preview` combines them for
-one manual installation without merging either PR into main. Combined local
-Lua 5.1/LuaJIT verification and CI must pass before handing over the package.
+at `50ac7ed`; fork PR #35 contains the UI fix at `c2c11ae`. Both remain open.
+Combined KindleHF `1.41.4+ci.93.fffe1c3` passed packaging, Rust CI, Lua CI and 26
+local tests in both Lua 5.1 and LuaJIT. Corvin reports direction seems preserved,
+Server 3 is much faster, and UI improvement is sufficient for now. Accept these
+observed outcomes; do not infer completion of the full manual checklist.
+The preview combines both fixes without merging either PR into main. Overall
+build run `34356659856` failed in Android-aarch64 SDK emulator unpacking only.
 
 MangaKatana: a bounded PC comparison used the public example chapter documented
 by the source author, not identifiers from Corvin's library. Same first image,
@@ -93,10 +96,11 @@ by the source author, not identifiers from Corvin's library. Same first image,
 This is one sequential sample per server on a PC, not a Kindle benchmark or a
 universal server ranking. The installed v3 package already offers all three image
 servers and the author implementation sets Referer without custom image processing.
-Recommend a manual Server 3 comparison on Kindle; do not automatically replace
-the source, change its saved setting, or increase download concurrency. No download
-runtime change is justified by these samples alone. A private-library test was
-blocked before execution and still requires separate explicit permission.
+Corvin's subsequent Kindle comparison confirms Server 3 is much faster for him;
+retain that setting and defer further download work. Do not automatically replace
+the source or increase concurrency. No downloader runtime change was made.
+A private-library test was blocked before execution and was not run; it is no
+longer needed for this investigation.
 
 ### Approved follow-up fixes (2026-09-09)
 
@@ -110,7 +114,8 @@ LTR/RTL reset on delayed first open and chapter switch, and scroll style reset.
 Apply explicit preferences to the new reader in KOReader's after-open callback,
 after its saved settings and source viewer. Do not force a direction when unset.
 All nine reader cases now pass on Lua 5.1 and LuaJIT; three existing source-screen
-cases also pass. CI and Kindle acceptance remain pending. The lifecycle matches
+cases also pass. Combined Rust/Lua CI and KindleHF packaging passed; Corvin reports
+direction seems preserved. Unreported device cases remain unverified. The lifecycle matches
 KOReader v2026.07.2 (version found in the preserved crash log).
 The settings-default follow-up reproduced two additional failures: unset values
 displayed LTR/paginated despite the runtime following viewer mode. Both controls
@@ -135,7 +140,8 @@ behavior remain unchanged. The cache-miss test baseline decoded twice per cover;
 the candidate decodes once. Three reproduction failures became eight passing
 cases on both Lua 5.1 and LuaJIT, including same-widget free/re-render. Full Lua
 lint passes. This is a deterministic work/ownership reduction, not a measured
-Kindle wall-clock speedup. CI and device checks remain pending.
+Kindle wall-clock speedup. Combined CI and KindleHF packaging passed. Corvin reports
+some UI improvement and accepts it for now; further optimization is deferred.
 
 Kindle check: compare cold/warm grid opening and page changes on the same library;
 check portrait/landscape covers, text, borders, and repeated opening/closing.
@@ -449,11 +455,11 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Complete the
-current reader/performance retest, then reprioritize before another feature.
-The UI-speed and chapter-direction fixes are implemented in separate open fork
-PRs, with a combined preview for manual Kindle testing. MangaKatana needs an
-on-device image-server comparison before claiming its slowness is resolved.
+Use combined KindleHF `1.41.4+ci.93.fffe1c3` as the current user-accepted package;
+retain `1.41.4+ci.87.56081e4` for rollback. The reported reader, UI and MangaKatana
+outcomes are sufficient for current use; leave further tuning deferred.
+Before integrating the two separate open fork PRs, resolve outstanding Android
+SDK setup checks and review merge readiness. Reprioritize before another feature.
 Corvin performs all file copies. Preserve recovery material and the release
 freeze. No upstream PRs or releases.
 
