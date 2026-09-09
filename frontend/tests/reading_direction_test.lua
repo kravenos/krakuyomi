@@ -88,7 +88,7 @@ local function open_document(path, after_open_callback)
   return ui
 end
 
-function ReaderUI:showReader(path, provider, seamless, is_provider_forced, after_open_callback)
+function ReaderUI:showReader(path, __, __, __, after_open_callback)
   if self.defer_first_open then
     self.defer_first_open = false
     -- A queued reader startup should not let preferences run before it exists.
