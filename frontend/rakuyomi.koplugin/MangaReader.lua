@@ -77,6 +77,22 @@ function MangaReader:show(options)
 
   -- move set self.is_showing function Rakuyomi:init call initializeFromReaderUI maybe random call sort
   self.is_showing = true
+  -- ReaderUI can finish opening after another event-loop tick. Apply preferences
+  -- to the new reader only after its saved settings and source viewer are loaded.
+  local function after_open(ui)
+    if not self.is_showing or self.chapter ~= options.chapter or not ui or not ui.document then
+      return
+    end
+    self.is_switching_document = false
+    local style_ok, style_err = pcall(self.applyPageTurnStylePreference, self, ui)
+    if not style_ok then
+      logger.warn("Unable to apply RakuYomi page-turn style:", style_err)
+    end
+    local ok, err = pcall(self.applyReadingDirectionPreference, self, ui)
+    if not ok then
+      logger.warn("Unable to apply RakuYomi reading direction:", err)
+    end
+  end
   if c_showing and ReaderUI.instance ~= nil then
     -- if we're showing, just switch the document
     -- Defer to nextTick to avoid calling switchDocument synchronously from
@@ -86,42 +102,29 @@ function MangaReader:show(options)
     -- access self.ui.document via getChapterProgress. (issue #__)
     self.is_switching_document = true
     UIManager:nextTick(function()
-      if ReaderUI.instance == nil then return end
-      ReaderUI.instance:switchDocument(options.path, nil, function()
+      if ReaderUI.instance == nil then
         self.is_switching_document = false
-      end)
+        return
+      end
+      ReaderUI.instance:switchDocument(options.path, nil, after_open)
     end)
   else
     -- took this from opds reader
     UIManager:broadcastEvent(Event:new("SetupShowReader"))
 
-    ReaderUI:showReader(options.path)
+    ReaderUI:showReader(options.path, nil, nil, nil, after_open)
   end
 
   -- re set because hook end book
   self.is_showing = true
-  UIManager:nextTick(function()
-    local style_ok, style_err = pcall(function()
-      self:applyPageTurnStylePreference()
-    end)
-    if not style_ok then
-      logger.warn("Unable to apply RakuYomi page-turn style:", style_err)
-    end
-
-    local ok, err = pcall(function()
-      self:applyReadingDirectionPreference()
-    end)
-    if not ok then
-      logger.warn("Unable to apply RakuYomi reading direction:", err)
-    end
-  end)
   Testing:emitEvent('manga_reader_shown')
 end
 
 --- Applies the page-turn style only when the user explicitly selected one.
 --- @private
-function MangaReader:applyPageTurnStylePreference()
-  local ui = ReaderUI.instance
+--- @param ui? table The newly opened reader; may not yet be ReaderUI.instance.
+function MangaReader:applyPageTurnStylePreference(ui)
+  ui = ui or ReaderUI.instance
   local configurable = ui and ui.document and ui.document.configurable
   local style = G_reader_settings:readSetting("rakuyomi_page_turn_style")
   local change = getPageTurnStyleChange(configurable, style)
@@ -136,9 +139,11 @@ end
 
 --- Applies the reading direction only when the user explicitly selected one.
 --- @private
-function MangaReader:applyReadingDirectionPreference()
+--- @param ui? table The newly opened reader; may not yet be ReaderUI.instance.
+function MangaReader:applyReadingDirectionPreference(ui)
   local direction = G_reader_settings:readSetting("rakuyomi_reading_direction")
-  local view = ReaderUI.instance and ReaderUI.instance.view
+  ui = ui or ReaderUI.instance
+  local view = ui and ui.view
   applyReadingDirection(view, direction)
 end
 

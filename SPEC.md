@@ -289,6 +289,16 @@ order defined by that specification:
 
 ### Fork implementation record
 
+Reading-direction follow-up contract (2026-09-09): an explicitly selected
+RakuYomi reading direction and page-turn style must survive initial opening,
+next/previous chapter changes, and reopening, including delayed reader startup.
+Apply them only after KOReader has initialized that document's saved settings
+and source viewer; never apply a delayed callback to a closed/unrelated reader.
+An unset preference continues to follow existing source/viewer behavior.
+Show that state as "Follow viewer mode" in both reader preference controls;
+never display an explicit LTR or paginated preference that was not saved. Users
+can select this automatic option to return to existing viewer behavior.
+
 This table records what the fork has built on top of upstream v1.41.4. It does
 not change whether a result may later be proposed upstream.
 

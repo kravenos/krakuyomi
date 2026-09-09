@@ -80,6 +80,30 @@ Do not combine these steps in one branch or PR.
 
 ## 4. Ordered feature backlog
 
+### Approved follow-up fixes (2026-09-09)
+
+Corvin requested work on reading-direction persistence, MangaKatana download
+speed, and UI speed. Keep each fix in its own fork-only branch/PR. Preserve all
+functionality and dependencies; no releases or automatic device copies.
+
+Reading-direction branch: `codex/fix-reading-direction-persistence`, based on
+fork main `ca36a99`. A standalone regression suite reproduced five failures:
+LTR/RTL reset on delayed first open and chapter switch, and scroll style reset.
+Apply explicit preferences to the new reader in KOReader's after-open callback,
+after its saved settings and source viewer. Do not force a direction when unset.
+All nine reader cases now pass on Lua 5.1 and LuaJIT; three existing source-screen
+cases also pass. CI and Kindle acceptance remain pending. The lifecycle matches
+KOReader v2026.07.2 (version found in the preserved crash log).
+The settings-default follow-up reproduced two additional failures: unset values
+displayed LTR/paginated despite the runtime following viewer mode. Both controls
+now offer "Follow viewer mode" as the automatic default; all four explicit choices
+remain. Six settings tests pass on Lua 5.1 and LuaJIT; no stored setting is rewritten.
+
+Device check: choose LTR in RakuYomi Settings, cross two chapter boundaries,
+close/reopen, then repeat with RTL and with continuous scroll. Verify downloaded
+reading, progress, chapter list, and Back to library remain intact. Corvin performs
+installation manually. Retain the accepted search-repair package for rollback.
+
 The order is safety-first. Classification is provisional until each feature's
 Gate 2. Re-rank this table after every successful device-tested feature build.
 Do not re-rank merely because a branch was opened or CI passed.

@@ -228,10 +228,11 @@ Settings.setting_value_definitions = {
       type = 'enum',
       title = _("Reading direction"),
       options = {
+        { label = _("Follow viewer mode"), value = "auto" },
         { label = _("Left to right"), value = "ltr" },
         { label = _("Right to left"), value = "rtl" },
       },
-      default = "ltr",
+      default = "auto",
       is_local = true,
     }
   },
@@ -241,10 +242,11 @@ Settings.setting_value_definitions = {
       type = 'enum',
       title = _("Page turn style"),
       options = {
+        { label = _("Follow viewer mode"), value = "auto" },
         { label = _("Paginated"), value = "paginated" },
         { label = _("Continuous scroll"), value = "scroll" },
       },
-      default = "paginated",
+      default = "auto",
       is_local = true,
     }
   },
