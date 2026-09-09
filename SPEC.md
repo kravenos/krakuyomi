@@ -299,6 +299,13 @@ Show that state as "Follow viewer mode" in both reader preference controls;
 never display an explicit LTR or paginated preference that was not saved. Users
 can select this automatic option to return to existing viewer behavior.
 
+UI-speed follow-up contract (2026-09-09): cover creation must not decode the
+same uncached file separately for sizing and display. The displayed widget owns
+its disposable image buffers through scaling and closing. Preserve aspect ratio,
+existing cover bounds/borders, missing-image behavior, and all current dependencies.
+Re-rendering after disposal must load a valid image again. Measure Kindle behavior
+before claiming a user-visible speedup.
+
 This table records what the fork has built on top of upstream v1.41.4. It does
 not change whether a result may later be proposed upstream.
 
