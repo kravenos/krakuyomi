@@ -3,13 +3,17 @@
 Status: candidate build pending. Not a release. Fork PRs #34 (reading preferences)
 and #35 (cover rendering) remain separate; use their combined preview package.
 
+Candidate: `1.41.4+ci.93.fffe1c3`, from commit `fffe1c3` in
+[combined build 34356659856](https://github.com/kravenos/krakuyomi/actions/runs/34356659856).
+Wait for its `build (kindlehf, ubuntu-latest)` job to pass before installing.
+
 ## Manual installation
 
 1. Keep your current working package and recovery backups. Fully exit KOReader.
 2. Download the **kindlehf build** artifact from the combined preview run linked
    in the task. Do not install either individual PR's package: each has only one fix.
-3. Extract the artifact's outer ZIP, then its plugin ZIP. Check `BUILD_INFO` against
-   the candidate version/commit supplied with that run.
+3. Extract the artifact's outer ZIP, then its plugin ZIP. Check that `BUILD_INFO.json`
+   contains version `1.41.4+ci.93.fffe1c3` and build `kindlehf`.
 4. Manually back up the current `Internal Storage/koreader/plugins/rakuyomi.koplugin`
    folder to your PC. Then replace its plugin contents with the candidate contents.
    Avoid nesting one `rakuyomi.koplugin` folder inside another.

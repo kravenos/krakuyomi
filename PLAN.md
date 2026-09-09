@@ -449,8 +449,8 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Reprioritize the
-backlog before starting another feature; no next implementation is selected.
+Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Complete the
+current reader/performance retest, then reprioritize before another feature.
 The UI-speed and chapter-direction fixes are implemented in separate open fork
 PRs, with a combined preview for manual Kindle testing. MangaKatana needs an
 on-device image-server comparison before claiming its slowness is resolved.
