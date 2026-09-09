@@ -130,7 +130,7 @@ end
 --- @return table
 function InstalledSourcesListing:generateItemTable(source_statuses)
   local item_table = {}
-  for _, source in ipairs(source_statuses) do
+  for __, source in ipairs(source_statuses) do
     local version_text = version(source.installed_version)
     if source.available_version ~= nil and source.freshness == "update_available" then
       version_text = version_text .. " -> " .. version(source.available_version)
@@ -276,7 +276,7 @@ function InstalledSourcesListing:showDiagnosis(diagnosis)
     _("Possible identifier change") .. ": " ..
         (diagnosis.probable_identifier_change and _("Yes") or _("No")),
   }
-  for _, step in ipairs(diagnosis.steps) do
+  for __, step in ipairs(diagnosis.steps) do
     local heading = label(step.name)
     if step.tested_item ~= nil then heading = heading .. " " .. step.tested_item end
     local details = { heading .. ": " .. label(step.outcome), step.message }
