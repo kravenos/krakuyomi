@@ -80,6 +80,26 @@ Do not combine these steps in one branch or PR.
 
 ## 4. Ordered feature backlog
 
+### Approved UI-speed follow-up (2026-09-09)
+
+Corvin requested UI speed improvements without removing functionality or
+dependencies. Branch `codex/speed-up-cover-rendering` starts at fork main
+`ca36a99`, independently of the reading-direction fix.
+
+Cover rendering now measures and scales within one image widget's normal loading
+cycle, eliminating the separate size-probe decode and its discarded buffer.
+No persistent image cache is added; sizing, border, placeholder, and disposal
+behavior remain unchanged. The cache-miss test baseline decoded twice per cover;
+the candidate decodes once. Three reproduction failures became eight passing
+cases on both Lua 5.1 and LuaJIT, including same-widget free/re-render. Full Lua
+lint passes. This is a deterministic work/ownership reduction, not a measured
+Kindle wall-clock speedup. CI and device checks remain pending.
+
+Kindle check: compare cold/warm grid opening and page changes on the same library;
+check portrait/landscape covers, text, borders, and repeated opening/closing.
+Install manually, retain the accepted package for rollback, and do not touch data.
+All changes and PRs remain fork-only; release freeze remains in force.
+
 The order is safety-first. Classification is provisional until each feature's
 Gate 2. Re-rank this table after every successful device-tested feature build.
 Do not re-rank merely because a branch was opened or CI passed.

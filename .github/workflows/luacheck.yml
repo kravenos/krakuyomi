@@ -28,3 +28,6 @@ jobs:
 
       - name: Test source status screens
         run: lua5.1 frontend/tests/source_status_test.lua
+
+      - name: Test single-decode cover rendering
+        run: lua5.1 frontend/tests/cover_rendering_test.lua
