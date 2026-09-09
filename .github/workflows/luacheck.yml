@@ -28,3 +28,6 @@ jobs:
 
       - name: Test source status screens
         run: lua5.1 frontend/tests/source_status_test.lua
+
+      - name: Test reading direction across chapter changes
+        run: lua5.1 frontend/tests/reading_direction_test.lua
