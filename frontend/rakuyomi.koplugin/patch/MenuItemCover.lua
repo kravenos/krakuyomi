@@ -435,19 +435,17 @@ function MenuItemCover:genCover(wleft_width, wleft_height)
     local wimage = ImageWidget:new {
       file = cover_path,
       file_do_cache = false,
+      -- Fit during the normal load/render cycle so the decoded image is reused
+      -- and owned by this widget. A separate size probe decoded it twice.
+      _loadfile = function(widget)
+        ImageWidget._loadfile(widget)
+        local __, __, scale_factor = getCachedCoverSize(
+          widget._bb:getWidth(), widget._bb:getHeight(), wleft_width, wleft_height)
+        widget.scale_factor = scale_factor
+      end,
     }
-    wimage:_loadfile()
-    local image_size = wimage:getSize() -- get final widget size
-    local _, _, scale_factor = getCachedCoverSize(image_size.w, image_size.h, wleft_width, wleft_height)
-
-    wimage = ImageWidget:new {
-      file = cover_path,
-      scale_factor = scale_factor,
-      file_do_cache = false,
-    }
-
     wimage:_render()
-    image_size = wimage:getSize()
+    local image_size = wimage:getSize()
 
     wleft = CenterContainer:new {
       dimen = Geom:new { w = wleft_width, h = wleft_height },
