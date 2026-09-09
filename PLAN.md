@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: All approved runtime outcomes and tracked cleanup are complete; final KindleHF validation remains
+- Status: Kindle acceptance failed for search; reading works. Search responsiveness repair is in progress.
 - Active gate: All six gates are pre-approved for the bounded fork-only program
-- Last verified: 2026-09-01
-- Active change: `codex/repository-cleanup`
+- Last verified: 2026-09-09
+- Active change: `codex/fix-search-responsiveness` (fork PR #33)
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -18,12 +18,12 @@ feature behavior in separately approved feature specifications.
 | Upstream branch | `main` at `66d592f5118d00ef899a049032f5cad0c6ace2c0`; one unreleased test-only commit beyond the pinned baseline |
 | Pinned upstream release | [`v1.41.4`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.41.4) at `df0ef29fc07d87966a1a2558ab257743f29efaf4` |
 | Fork | `kravenos/krakuyomi` |
-| Clean rebuild branch | Fork `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b`; contains the pinned upstream v1.41.4 baseline plus the isolated rebuild outcomes |
-| Fork default branch | `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b` after fork PR #29 |
+| Clean rebuild branch | Fork `main` at `b0a7153002ecd6fe7e02bf98da72ae6fa58dca74`; pinned upstream v1.41.4 plus isolated rebuild outcomes and Sources-screen repair |
+| Fork default branch | `main` at `b0a7153002ecd6fe7e02bf98da72ae6fa58dca74` after fork PR #32 |
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
 | Fork release baseline tag | `v1.41.4` points exactly to upstream release commit `df0ef29`; no GitHub release exists |
-| Latest feature CI | PR #29 passed Rust, Lua, schema generation, and all nine platform jobs including KindleHF; release publication was skipped |
+| Latest completed repair CI | PR #32 passed Rust, Lua, schema generation, and all nine platform jobs including KindleHF; release publication was skipped |
 
 The v1.41.4 release commit `df0ef29` adds release metadata to code parent
 `9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
@@ -41,15 +41,15 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Remove proven unused tracked repository material |
-| Classification | Fork-only repository cleanup |
+| Active outcome | Restore search responsiveness and cancellation after failed Kindle acceptance |
+| Classification | Fork-only bug repair; preserve installed sources and library data |
 | Gate 1 | Pre-approved; upstream and fork state verified |
 | Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
 | Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
-| Gate 4 | Approved runtime implementation complete through fork PR #29; every merged feature had green checks |
-| Gate 5 | Final exact-commit KindleHF artifact and on-device validation after documentation and cleanup |
+| Gate 4 | PR #32 merged with passing checks; PR #33 reproduces shared-lock and busy-worker failures, then fixes them at `25a74e2`; verification pending |
+| Gate 5 | Failed on installed `1.41.4+ci.80.e408f67`: search slows KOReader even after cancellation; reading works. Retest required after repair. |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
-| Branch base | Fork `main` at `096de31d8d0d742bc1d528f1f2335fee9d5a550b` |
+| Branch base | Installed-code baseline `e408f674dce18c25f0e4fb171d277b829485caf1`; PR #32 is independent and already on fork `main` |
 | Intended fork PR target | `main` |
 | Intended upstream target | None; the complete program is fork-only |
 
@@ -330,9 +330,33 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Merge the cleanup PR after all checks pass. Then run the Build workflow from the
-resulting exact fork `main`, download and verify its KindleHF artifact, and
-perform the bounded on-device checks. Do not open upstream PRs or releases.
+Complete and verify fork PR #33. Build a combined KindleHF candidate only after
+review and passing checks. Corvin performs all file copies, including artifact
+download and Kindle installation; provide exact manual steps. No upstream PRs
+or releases.
+
+Repair evidence: run `34341914191` reproduces settings/storage locks held while
+waiting for the source manager. After the lock fix, run `34347405062` passes
+all 25 server tests and reproduces busy-worker metadata and pre-cancellation
+failures. Added tests also cover cancellation after the search starts and
+timeout outcomes saved to source health. Native Windows execution is blocked
+by existing Unix-only dependencies; Linux CI is the automated execution record.
+
+The repair snapshots shared state, keeps immutable Aidoku metadata outside the
+worker lock, stops awaiting cancelled searches, signals child operations on
+drop, and applies the request deadline while waiting for shared state as well
+as while searching. Other source runtimes keep their existing dynamic metadata
+behavior. Source-selection rules, package versions and library records are not
+changed by this repair. These choices follow
+[Tokio's blocking-worker limitations](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html)
+and [cooperative cancellation](https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html).
+
+Acceptance requires: Sources and diagnosis screens open; search completes or
+reports source-specific failures within its deadline; cancelling a running
+search leaves menus/settings usable; downloaded reading and progress still
+work after restart. Do not claim that responsive cancellation forcibly stops
+arbitrary source code already running in a blocking worker. Investigate any
+remaining CPU/memory pressure on-device before accepting the build.
 
 ## 11. Historical references
 

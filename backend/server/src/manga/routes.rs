@@ -301,27 +301,47 @@ struct SearchMangasResponse {
 }
 
 async fn get_mangas(
+    state: StateExtractor<State>,
+    query: Query<GetMangasQuery>,
+) -> Result<Json<SearchMangasResponse>, AppError> {
+    let token = create_token(state.cancel_token_store.clone(), query.cancel_id).await;
+    // Dropping a request or reaching its deadline must also signal its workers.
+    let _cancel_on_drop = token.0.clone().drop_guard();
+    let request = search_with_snapshot(state, query, token.0.clone());
+    match token
+        .0
+        .run_until_cancelled(tokio::time::timeout(Duration::from_secs(59), request))
+        .await
+    {
+        Some(Ok(result)) => result,
+        Some(Err(_)) => Err(AppError::SourceOperation(
+            shared::source_health::SourceOperationError::timeout(),
+        )),
+        None => Err(AppError::Other(anyhow::anyhow!("Search cancelled."))),
+    }
+}
+
+async fn search_with_snapshot(
     StateExtractor(State {
         database,
         source_manager,
-        cancel_token_store,
         chapter_storage,
         settings,
         source_health,
         ..
     }): StateExtractor<State>,
     Query(GetMangasQuery {
-        cancel_id,
+        cancel_id: _,
         include,
         exclude,
         q,
         page,
     }): Query<GetMangasQuery>,
+    token: CancellationToken,
 ) -> Result<Json<SearchMangasResponse>, AppError> {
-    let chapter_storage = chapter_storage.lock().await;
-    let settings = settings.lock().await;
-    let source_manager = source_manager.lock().await;
-    let token = create_token(cancel_token_store, cancel_id).await;
+    let chapter_storage = chapter_storage.lock().await.clone();
+    let settings = settings.lock().await.clone();
+    let source_manager = source_manager.lock().await.clone();
 
     let included_source_ids = match include {
         Some(value) => Some(parse_source_ids(&value)),
@@ -338,23 +358,20 @@ async fn get_mangas(
 
     let page = page.unwrap_or(1).max(1);
 
-    let (mut mangas, sources, has_next_page) =
-        cancel_after(&token.0, Duration::from_secs(59), |token| {
-            usecases::search_mangas(
-                &*source_manager,
-                &database,
-                &chapter_storage,
-                &settings,
-                token,
-                q,
-                &included_source_ids,
-                page,
-                30,
-                &source_health,
-            )
-        })
-        .await
-        .map_err(AppError::from_search_mangas_error)?;
+    let (mut mangas, sources, has_next_page) = usecases::search_mangas(
+        &source_manager,
+        &database,
+        &chapter_storage,
+        &settings,
+        token,
+        q,
+        &included_source_ids,
+        page,
+        30,
+        &source_health,
+    )
+    .await
+    .map_err(AppError::from_search_mangas_error)?;
 
     if settings.search_view_mode != shared::settings::SearchViewMode::Base {
         resolve_manga_covers(&mut mangas, &chapter_storage);
@@ -1258,6 +1275,75 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn waiting_search_does_not_hold_settings_or_storage_locks() {
+        use shared::{
+            chapter_storage::ChapterStorage, database::Database, settings::Settings,
+            source_health::SourceHealthStore, source_manager::SourceManager,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let settings = Settings::default();
+        let state = State {
+            source_manager: Arc::new(Mutex::new(
+                SourceManager::from_folder(directory.path().join("sources"), settings.clone())
+                    .unwrap(),
+            )),
+            database: Arc::new(
+                Database::new(&directory.path().join("test.db"))
+                    .await
+                    .unwrap(),
+            ),
+            chapter_storage: Arc::new(Mutex::new(
+                ChapterStorage::new(
+                    directory.path().join("downloads"),
+                    size::Size::from_mebibytes(10.0),
+                    false,
+                )
+                .unwrap(),
+            )),
+            settings: Arc::new(Mutex::new(settings)),
+            settings_path: directory.path().join("settings.json"),
+            catalog_cache_path: directory.path().join("catalog.json"),
+            source_health: SourceHealthStore::open(directory.path().join("health.json")),
+            job_state: Default::default(),
+            cancel_token_store: Default::default(),
+            download_semaphore: Arc::new(tokio::sync::Semaphore::new(1)),
+            startup_log: Default::default(),
+        };
+        let manager_guard = state.source_manager.lock().await;
+        let mut request = Box::pin(get_mangas(
+            StateExtractor(state.clone()),
+            Query(GetMangasQuery {
+                cancel_id: Some(77),
+                include: None,
+                exclude: None,
+                q: "fixture".into(),
+                page: None,
+            }),
+        ));
+        assert!(futures::poll!(&mut request).is_pending());
+        let settings_available = state.settings.try_lock().is_ok();
+        let storage_available = state.chapter_storage.try_lock().is_ok();
+        post_cancel_request(StateExtractor(state.clone()), Json(77))
+            .await
+            .ok();
+        let cancelled = tokio::time::timeout(Duration::from_secs(1), &mut request).await;
+        drop(request);
+        drop(manager_guard);
+        assert!(
+            settings_available,
+            "search must not lock settings while waiting on a source"
+        );
+        assert!(
+            storage_available,
+            "search must not lock storage while waiting on a source"
+        );
+        assert!(
+            matches!(cancelled, Ok(Err(_))),
+            "cancellation must work while waiting for the source manager"
+        );
+    }
 
     #[test]
     fn included_source_ids_are_trimmed_and_deduplicated() {

@@ -51,6 +51,9 @@ pub async fn search_mangas(
     seconds: u64,
     source_health: &SourceHealthStore,
 ) -> Result<(Vec<Manga>, Vec<SourceSearchOutcome>, bool), Error> {
+    if cancellation_token.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
     // FIXME this looks awful
     let query = &query;
 
@@ -65,12 +68,7 @@ pub async fn search_mangas(
         .cloned()
         .collect::<Vec<_>>();
 
-    let source_results: Vec<(
-        SourceMangaSearchResults,
-        Option<SearchError>,
-        bool,
-        Option<SourceHealthObservation>,
-    )> = stream::iter(sources)
+    let pending_results = stream::iter(sources)
         .map(|source| {
             let cancellation_token = cancellation_token.clone();
             let query = query.to_string();
@@ -78,6 +76,7 @@ pub async fn search_mangas(
 
             async move {
                 let token = cancellation_token.child_token();
+                let _cancel_on_drop = token.clone().drop_guard();
                 let item_key = query.clone();
 
                 let fetch_task = async { source.search_mangas(token.clone(), query, page).await };
@@ -207,8 +206,16 @@ pub async fn search_mangas(
             }
         })
         .buffered(CONCURRENT_SEARCH_REQUESTS)
-        .collect::<Vec<_>>()
-        .await;
+        .collect::<Vec<_>>();
+    let source_results: Vec<(
+        SourceMangaSearchResults,
+        Option<SearchError>,
+        bool,
+        Option<SourceHealthObservation>,
+    )> = cancellation_token
+        .run_until_cancelled(pending_results)
+        .await
+        .ok_or(Error::Cancelled)?;
 
     let mut outcomes = Vec::new();
     let mut has_next_page = false;
@@ -302,6 +309,8 @@ fn source_is_included(included_source_ids: &Option<HashSet<String>>, source_id: 
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Search cancelled.")]
+    Cancelled,
     #[error("an error occurred while fetching search results from the source")]
     SourceError(#[source] anyhow::Error),
 }

@@ -51,6 +51,9 @@ pub mod keiyoushi;
 pub mod lnreader;
 pub mod mangayomi;
 
+#[cfg(test)]
+mod search_regression_tests;
+
 #[cfg(not(feature = "all"))]
 pub mod html_element;
 #[cfg(feature = "all")]
@@ -100,6 +103,9 @@ pub struct Source {
     pub backend: SourceBackend,
     pub features: SourceFeatures,
     pub usage: ResourceRegistry,
+    // AIX metadata is immutable for this loaded package. Keep it outside the
+    // execution lock so a timed-out worker cannot block status/error responses.
+    aidoku_manifest: Option<Arc<SourceManifest>>,
 }
 
 /// Like [`wrap_blocking_source_fn!`], but dispatches between the WASM and
@@ -252,6 +258,7 @@ impl Source {
         let features = { blocking_source.features.clone() };
 
         Ok(Self {
+            aidoku_manifest: Some(Arc::new(blocking_source.manifest.clone())),
             backend: SourceBackend::Aidoku(Arc::new(Mutex::new(blocking_source))),
             features,
             usage: ResourceRegistry::default(),
@@ -272,6 +279,7 @@ impl Source {
         source.usage = usage.clone();
         Ok(Self {
             backend: SourceBackend::LnReader(Arc::new(source)),
+            aidoku_manifest: None,
             features,
             usage,
         })
@@ -291,6 +299,7 @@ impl Source {
         source.usage = usage.clone();
         Ok(Self {
             backend: SourceBackend::Mangayomi(Arc::new(source)),
+            aidoku_manifest: None,
             features,
             usage,
         })
@@ -315,6 +324,7 @@ impl Source {
                 source.usage = usage.clone();
                 Source {
                     backend: SourceBackend::Keiyoushi(Arc::new(source)),
+                    aidoku_manifest: None,
                     features,
                     usage,
                 }
@@ -325,10 +335,10 @@ impl Source {
     pub fn manifest(&self) -> SourceManifest {
         // FIXME we dont actually need to clone here but yeah it's easier
         match &self.backend {
-            SourceBackend::Aidoku(blocking_source) => blocking_source
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .manifest
+            SourceBackend::Aidoku(_) => self
+                .aidoku_manifest
+                .as_deref()
+                .expect("Aidoku metadata is captured when loading the package")
                 .clone(),
             SourceBackend::LnReader(lnreader) => lnreader.manifest(),
             SourceBackend::Mangayomi(mangayomi) => mangayomi.manifest(),
@@ -940,6 +950,9 @@ impl BlockingSource {
         query: String,
         page: i32,
     ) -> Result<(Vec<Manga>, bool)> {
+        if cancellation_token.is_cancelled() {
+            bail!("Search cancelled.");
+        }
         self.ensure_booted()?;
         if self.next_sdk {
             return self
