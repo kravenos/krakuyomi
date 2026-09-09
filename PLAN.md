@@ -94,6 +94,10 @@ after its saved settings and source viewer. Do not force a direction when unset.
 All nine reader cases now pass on Lua 5.1 and LuaJIT; three existing source-screen
 cases also pass. CI and Kindle acceptance remain pending. The lifecycle matches
 KOReader v2026.07.2 (version found in the preserved crash log).
+The settings-default follow-up reproduced two additional failures: unset values
+displayed LTR/paginated despite the runtime following viewer mode. Both controls
+now offer "Follow viewer mode" as the automatic default; all four explicit choices
+remain. Six settings tests pass on Lua 5.1 and LuaJIT; no stored setting is rewritten.
 
 Device check: choose LTR in RakuYomi Settings, cross two chapter boundaries,
 close/reopen, then repeat with RTL and with continuous scroll. Verify downloaded

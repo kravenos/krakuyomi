@@ -31,3 +31,6 @@ jobs:
 
       - name: Test reading direction across chapter changes
         run: lua5.1 frontend/tests/reading_direction_test.lua
+
+      - name: Test reader preference defaults
+        run: lua5.1 frontend/tests/reader_settings_test.lua
