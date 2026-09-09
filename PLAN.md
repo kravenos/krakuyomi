@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: Kindle acceptance failed for search; reading works. Search responsiveness repair is in progress.
+- Status: Kindle acceptance passed; Corvin confirmed all manual retest steps pass on 2026-09-09.
 - Active gate: All six gates are pre-approved for the bounded fork-only program
 - Last verified: 2026-09-09
-- Active change: `codex/fix-search-responsiveness` (fork PR #33)
+- Active change: None; Sources and search repairs are merged and accepted. Reprioritize before further coding.
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -18,12 +18,12 @@ feature behavior in separately approved feature specifications.
 | Upstream branch | `main` at `66d592f5118d00ef899a049032f5cad0c6ace2c0`; one unreleased test-only commit beyond the pinned baseline |
 | Pinned upstream release | [`v1.41.4`](https://github.com/tachibana-shin/rakuyomi/releases/tag/v1.41.4) at `df0ef29fc07d87966a1a2558ab257743f29efaf4` |
 | Fork | `kravenos/krakuyomi` |
-| Clean rebuild branch | Fork `main` at `b0a7153002ecd6fe7e02bf98da72ae6fa58dca74`; pinned upstream v1.41.4 plus isolated rebuild outcomes and Sources-screen repair |
-| Fork default branch | `main` at `b0a7153002ecd6fe7e02bf98da72ae6fa58dca74` after fork PR #32 |
+| Clean rebuild branch | Fork `main` at `ca36a992ed400efa1f5c3dc0be10b65c012d66fe`; pinned upstream v1.41.4 plus isolated rebuild outcomes and Sources/search repairs |
+| Fork default branch | `main` at `ca36a992ed400efa1f5c3dc0be10b65c012d66fe` after fork PR #33 |
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
 | Fork release baseline tag | `v1.41.4` points exactly to upstream release commit `df0ef29`; no GitHub release exists |
-| Latest completed repair CI | PR #32 passed Rust, Lua, schema generation, and all nine platform jobs including KindleHF; release publication was skipped |
+| Latest completed repair CI | PR run `34348172572` and post-merge run `34349641015` succeeded; release publication was skipped |
 
 The v1.41.4 release commit `df0ef29` adds release metadata to code parent
 `9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
@@ -41,13 +41,13 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Restore search responsiveness and cancellation after failed Kindle acceptance |
+| Active outcome | Repair accepted; select the next priority before further implementation |
 | Classification | Fork-only bug repair; preserve installed sources and library data |
 | Gate 1 | Pre-approved; upstream and fork state verified |
 | Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
 | Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
-| Gate 4 | PR #32 merged with passing checks; PR #33 reproduces shared-lock and busy-worker failures, then fixes them at `25a74e2`; verification pending |
-| Gate 5 | Failed on installed `1.41.4+ci.80.e408f67`: search slows KOReader even after cancellation; reading works. Retest required after repair. |
+| Gate 4 | PRs #32 and #33 merged; Rust/Lua checks and all nine platform builds passed |
+| Gate 5 | Passed: Corvin reports every manual retest step passes for supplied KindleHF `1.41.4+ci.87.56081e4`, whose Git tree matches merged `ca36a99` |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
 | Branch base | Installed-code baseline `e408f674dce18c25f0e4fb171d277b829485caf1`; PR #32 is independent and already on fork `main` |
 | Intended fork PR target | `main` |
@@ -374,10 +374,16 @@ conflict stops the affected outcome without blocking independent outcomes.
 
 ## 10. Recommended next action
 
-Complete and verify fork PR #33. Build a combined KindleHF candidate only after
-review and passing checks. Corvin performs all file copies, including artifact
-download and Kindle installation; provide exact manual steps. No upstream PRs
-or releases.
+Keep KindleHF `1.41.4+ci.87.56081e4` as the accepted baseline. Reprioritize the
+backlog before starting another feature; no next implementation is selected.
+Corvin performs all file copies. Preserve recovery material and the release
+freeze. No upstream PRs or releases.
+
+On 2026-09-09, Corvin reported "everything passes" in response to the supplied
+manual retest guide. Record search, cancellation responsiveness, Sources and
+diagnosis screens, downloaded reading, and progress after restart as passed by
+user report, not as independently observed by Codex. The earlier failed test
+on `1.41.4+ci.80.e408f67` remains historical incident evidence.
 
 Repair evidence: run `34341914191` reproduces settings/storage locks held while
 waiting for the source manager. After the lock fix, run `34347405062` passes
