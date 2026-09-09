@@ -318,9 +318,9 @@ async fn get_mangas(
         page,
     }): Query<GetMangasQuery>,
 ) -> Result<Json<SearchMangasResponse>, AppError> {
-    let chapter_storage = chapter_storage.lock().await;
-    let settings = settings.lock().await;
-    let source_manager = source_manager.lock().await;
+    let chapter_storage = chapter_storage.lock().await.clone();
+    let settings = settings.lock().await.clone();
+    let source_manager = source_manager.lock().await.clone();
     let token = create_token(cancel_token_store, cancel_id).await;
 
     let included_source_ids = match include {
@@ -341,7 +341,7 @@ async fn get_mangas(
     let (mut mangas, sources, has_next_page) =
         cancel_after(&token.0, Duration::from_secs(59), |token| {
             usecases::search_mangas(
-                &*source_manager,
+                &source_manager,
                 &database,
                 &chapter_storage,
                 &settings,
