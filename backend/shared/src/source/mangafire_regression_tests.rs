@@ -550,3 +550,98 @@ fn mangafire_chapter_key_collision_fails_without_dropping_either_chapter() {
         "ambiguous chapter keys must fail rather than overwrite progress or discard a chapter"
     );
 }
+
+#[cfg(feature = "all")]
+#[test]
+fn mangafire_refresh_preserves_real_database_progress_and_download_lookup() {
+    use crate::{chapter_storage::ChapterStorage, database::Database};
+
+    // Source setup uses a blocking manager lock, so do it outside the runtime.
+    let mut fixture = fixture_with_chapter_keys(SOURCE, 8, true, &["101"]);
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let database = runtime
+        .block_on(Database::new(
+            &fixture._directory.path().join("library.sqlite"),
+        ))
+        .unwrap();
+    let manga_id = MangaId::from_strings(SOURCE.to_owned(), SAVED.to_owned());
+    let saved = ChapterInformation::from(Chapter {
+        source_id: SOURCE.to_owned(),
+        manga_id: SAVED.to_owned(),
+        id: "chapter/101".to_owned(),
+        chapter_num: Some(1.0),
+        ..Chapter::default()
+    });
+    let storage = ChapterStorage::new(
+        fixture._directory.path().join("downloads"),
+        size::Size::from_megabytes(1),
+        false,
+    )
+    .unwrap();
+    let stored_path = storage.get_path_to_store_chapter(&saved.id, false, false);
+    std::fs::create_dir_all(stored_path.parent().unwrap()).unwrap();
+    // get_stored_chapter checks presence, not archive contents. No real manga is used.
+    std::fs::write(&stored_path, b"synthetic downloaded-chapter marker").unwrap();
+    assert_eq!(
+        storage.get_stored_chapter(&saved.id, false),
+        Some(stored_path.clone())
+    );
+
+    let original_last_read = runtime.block_on(async {
+        database
+            .upsert_cached_chapter_informations(&manga_id, std::slice::from_ref(&saved))
+            .await
+            .unwrap();
+        database
+            .mark_chapter_as_read(&saved.id, Some(true))
+            .await
+            .unwrap();
+        database
+            .find_chapter_state(&saved.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .last_read
+    });
+    let refreshed: Vec<ChapterInformation> = fixture
+        .source
+        .get_chapter_list(CancellationToken::new(), SAVED.to_owned())
+        .unwrap()
+        .into_iter()
+        .map(ChapterInformation::from)
+        .collect();
+    runtime.block_on(async {
+        // This is the actual refresh write, which deletes old cached IDs absent
+        // from the incoming list. A request-only fix would lose the old row here.
+        database
+            .upsert_cached_chapter_informations(&manga_id, &refreshed)
+            .await
+            .unwrap();
+        let cached_ids = database.find_cached_chapter_ids(&manga_id).await.unwrap();
+        assert_eq!(
+            cached_ids,
+            std::collections::HashSet::from([saved.id.clone()])
+        );
+        assert_eq!(refreshed[0].id, saved.id);
+        let state = database
+            .find_chapter_state(&refreshed[0].id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(state.read, "refresh must keep the saved read flag");
+        assert_eq!(state.last_read, original_last_read);
+        assert_eq!(
+            storage.get_stored_chapter(&refreshed[0].id, false),
+            Some(stored_path)
+        );
+        let fresh_parent = MangaId::from_strings(SOURCE.to_owned(), SHORT.to_owned());
+        assert!(
+            database
+                .find_cached_chapter_ids(&fresh_parent)
+                .await
+                .unwrap()
+                .is_empty(),
+            "refresh must not create a separate canonical-ID chapter namespace"
+        );
+    });
+}
