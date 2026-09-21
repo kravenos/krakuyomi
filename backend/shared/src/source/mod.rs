@@ -54,6 +54,9 @@ pub mod mangayomi;
 #[cfg(test)]
 mod search_regression_tests;
 
+#[cfg(test)]
+mod mangafire_regression_tests;
+
 #[cfg(not(feature = "all"))]
 pub mod html_element;
 #[cfg(feature = "all")]
