@@ -44,7 +44,11 @@ The database, progress and downloaded-file naming rules are unchanged.
   file lookup in a temporary directory. It checks that the original chapter row,
   read flag, read timestamp and stored file remain accessible without creating a
   second chapter namespace. This twelfth test was added after the before run.
-- After implementation: verification pending. Do not treat this as device-tested.
+- After implementation: [CI run](https://github.com/kravenos/krakuyomi/actions/runs/35637749633)
+  at `f409814` passed formatting, Clippy and `cargo test --all`. All 12 MangaFire
+  tests passed; the shared suite reported 340 passed, 0 failed, 7 ignored.
+- Independent read-only review found no blocking issue. Device verification
+  remains pending; automated results do not substitute for Kindle acceptance.
 
 ## Manual Kindle acceptance
 
