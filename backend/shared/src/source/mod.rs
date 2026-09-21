@@ -49,10 +49,14 @@ use crate::resource_usage::ResourceRegistry;
 pub(crate) mod decode_image;
 pub mod keiyoushi;
 pub mod lnreader;
+mod mangafire;
 pub mod mangayomi;
 
 #[cfg(test)]
 mod search_regression_tests;
+
+#[cfg(test)]
+mod mangafire_regression_tests;
 
 #[cfg(not(feature = "all"))]
 pub mod html_element;
@@ -1453,14 +1457,22 @@ impl BlockingSource {
     pub fn get_manga_update_next(
         &mut self,
         cancellation_token: CancellationToken,
-        manga: aidoku::Manga,
+        mut manga: aidoku::Manga,
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<aidoku::Manga> {
         self.ensure_booted()?;
-        self.run_under_context(cancellation_token, OperationContextObject::None, |this| {
-            this.get_manga_update_next_inner(manga, needs_details, needs_chapters)
-        })
+        let source_key = mangafire::source_manga_key(&self.manifest, self.next_sdk, &manga.key)
+            .map(str::to_owned);
+        let saved_key = source_key.map(|key| std::mem::replace(&mut manga.key, key));
+        let mut result =
+            self.run_under_context(cancellation_token, OperationContextObject::None, |this| {
+                this.get_manga_update_next_inner(manga, needs_details, needs_chapters)
+            })?;
+        if let Some(saved_key) = saved_key {
+            mangafire::restore_saved_keys(&mut result, saved_key)?;
+        }
+        Ok(result)
     }
 
     fn get_manga_update_next_inner(
@@ -1499,10 +1511,16 @@ impl BlockingSource {
     pub fn get_page_list_next(
         &mut self,
         cancellation_token: CancellationToken,
-        manga: aidoku::Manga,
-        chapter: aidoku::Chapter,
+        mut manga: aidoku::Manga,
+        mut chapter: aidoku::Chapter,
     ) -> Result<Vec<aidoku::Page>> {
         self.ensure_booted()?;
+        if let Some(key) = mangafire::source_manga_key(&self.manifest, self.next_sdk, &manga.key) {
+            manga.key = key.to_owned();
+            if let Some(key) = mangafire::source_chapter_key(&chapter.key) {
+                chapter.key = key.to_owned();
+            }
+        }
         self.run_under_context(cancellation_token, OperationContextObject::None, |this| {
             this.get_page_list_next_inner(manga, chapter)
         })
