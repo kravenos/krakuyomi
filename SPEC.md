@@ -324,6 +324,22 @@ after repeated external failures. It did not weaken deterministic source tests.
 
 ## 12. Detailed specifications and historical evidence
 
+### MangaFire saved-library compatibility (approved 2026-09-21)
+
+Translate recognized saved MangaFire references only at the verified next-SDK
+version 8 source boundary. Restore the original manga and chapter identities
+before caching, preserving read progress and downloaded-file lookup. Do not
+rewrite the database, merge old/fresh identities, reinstall the source, or
+require removing and re-adding library titles. Reject conflicting restored
+chapter keys before refresh writes. Other sources, package versions and fresh
+search references retain existing behavior.
+
+The precise rules, automated evidence and required manual Kindle checks are in
+[the compatibility record](docs/verification/2026-09-21-mangafire-compatibility.md).
+This is a fork-only bug fix, not the deferred canonical-ID migration.
+
+### Historical evidence
+
 Use these immutable archive records as evidence:
 
 - [fork rebuild inventory](https://github.com/kravenos/krakuyomi/blob/44794ff8112ae3d40bded3fea0cbd9175434d72a/fork-rebuild-spec.md);

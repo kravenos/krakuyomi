@@ -1,9 +1,9 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: Kindle acceptance passed; Corvin confirmed all manual retest steps pass on 2026-09-09.
+- Status: MangaFire saved-library repair implemented; automated verification and a combined KindleHF preview are pending.
 - Active gate: All six gates are pre-approved for the bounded fork-only program
-- Last verified: 2026-09-09
-- Active change: None; Sources and search repairs are merged and accepted. Reprioritize before further coding.
+- Last verified: 2026-09-21
+- Active change: Restore opening and refreshing existing MangaFire library entries without changing their stored identities.
 - Publication authority: Fork branches, pull requests, sequential fork merges, validation builds, and final KindleHF artifact preparation are approved; upstream publication, GitHub releases, destructive device work, and unverified cleanup remain prohibited
 
 This file is the operational source of truth for the controlled rebuild. The
@@ -41,15 +41,15 @@ Exactly one change may be active in Gates 1 through 5.
 
 | Field | Current value |
 |---|---|
-| Active outcome | Repair accepted; select the next priority before further implementation |
+| Active outcome | MangaFire saved-library compatibility; preserve progress and existing downloads |
 | Classification | Fork-only bug repair; preserve installed sources and library data |
-| Gate 1 | Pre-approved; upstream and fork state verified |
-| Gate 2 | Pre-approved; exact stable tag and boundaries recorded |
-| Gate 3 | Pre-approved; branch, commits, checks, and rollback pinned |
-| Gate 4 | PRs #32 and #33 merged; Rust/Lua checks and all nine platform builds passed |
-| Gate 5 | Passed: Corvin reports every manual retest step passes for supplied KindleHF `1.41.4+ci.87.56081e4`, whose Git tree matches merged `ca36a99` |
+| Gate 1 | Offline installed-source probe confirmed malformed requests for all 22 saved MangaFire entries; fresh short-key controls work |
+| Gate 2 | Exact next-SDK MangaFire v8 boundary repair; no database migration, source replacement, or library re-addition |
+| Gate 3 | Approved by Corvin's go-ahead; isolated branch `codex/fix-mangafire-library-references` from `ca36a99` |
+| Gate 4 | Five expected regression failures reproduced; fix `f409814` independently reviewed; after-fix CI pending |
+| Gate 5 | Pending for MangaFire. Prior accepted installed preview `1.41.4+ci.93.fffe1c3` retains reading-direction and UI fixes |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
-| Branch base | Installed-code baseline `e408f674dce18c25f0e4fb171d277b829485caf1`; PR #32 is independent and already on fork `main` |
+| Branch base | Isolated fix: fork main `ca36a99`. Combined preview: accepted reader/UI code plus preserved local evidence at `8b4c179` |
 | Intended fork PR target | `main` |
 | Intended upstream target | None; the complete program is fork-only |
 
@@ -79,6 +79,15 @@ Do not combine these steps in one branch or PR.
 | Ignored `dist/` recovery material | Unique recovery evidence is not yet proven archived elsewhere | Retain; never include in tracked cleanup |
 
 ## 4. Ordered feature backlog
+
+Current priority (2026-09-21): finish automated checks for the MangaFire repair,
+then supply a combined KindleHF preview for manual copying and device testing.
+Keep this fix separate from still-open reader/UI PRs #34 and #35. No merge or
+release is part of the current handoff. Further UI tuning stays deferred and
+MangaKatana Server 3 remains the accepted setting.
+
+See [MangaFire compatibility contract and checks](docs/verification/2026-09-21-mangafire-compatibility.md)
+and [offline diagnosis](docs/verification/2026-09-21-mangafire-diagnosis.md).
 
 Current execution checkpoint (2026-09-09): fork PR #34 contains the reader fix
 at `50ac7ed`; fork PR #35 contains the UI fix at `c2c11ae`. Both remain open.
