@@ -1,6 +1,6 @@
 # RakuYomi Controlled Rebuild Plan
 
-- Status: MangaFire saved-library repair implemented; automated verification and a combined KindleHF preview are pending.
+- Status: MangaFire repair passes automated checks; fork PR #36 is draft. Combined KindleHF preview is ready for manual device testing.
 - Active gate: All six gates are pre-approved for the bounded fork-only program
 - Last verified: 2026-09-21
 - Active change: Restore opening and refreshing existing MangaFire library entries without changing their stored identities.
@@ -23,7 +23,7 @@ feature behavior in separately approved feature specifications.
 | Historical archive | `codex/archive-pre-upstream-rebuild-2026-07-31` at `44794ff8112ae3d40bded3fea0cbd9175434d72a` |
 | Fork releases | None |
 | Fork release baseline tag | `v1.41.4` points exactly to upstream release commit `df0ef29`; no GitHub release exists |
-| Latest completed repair CI | PR run `34348172572` and post-merge run `34349641015` succeeded; release publication was skipped |
+| Latest completed repair CI | Isolated MangaFire CI `35637749633` passed; combined run `35637875528` passed Rust/Lua CI and KindleHF packaging. Android setup failed; no release |
 
 The v1.41.4 release commit `df0ef29` adds release metadata to code parent
 `9b06ec2`, whose upstream Build and Lua checks passed on 2026-08-27 and produced
@@ -46,7 +46,7 @@ Exactly one change may be active in Gates 1 through 5.
 | Gate 1 | Offline installed-source probe confirmed malformed requests for all 22 saved MangaFire entries; fresh short-key controls work |
 | Gate 2 | Exact next-SDK MangaFire v8 boundary repair; no database migration, source replacement, or library re-addition |
 | Gate 3 | Approved by Corvin's go-ahead; isolated branch `codex/fix-mangafire-library-references` from `ca36a99` |
-| Gate 4 | Five expected regression failures reproduced; fix `f409814` independently reviewed; after-fix CI pending |
+| Gate 4 | Five expected regression failures reproduced; fix `f409814` independently reviewed; all 12 MangaFire tests and full Rust CI passed. Combined preview `4f6190c` passes Rust/Lua CI and KindleHF packaging; Android setup failed separately |
 | Gate 5 | Pending for MangaFire. Prior accepted installed preview `1.41.4+ci.93.fffe1c3` retains reading-direction and UI fixes |
 | Gate 6 | Fork PRs and merges pre-approved after review and green checks; releases prohibited |
 | Branch base | Isolated fix: fork main `ca36a99`. Combined preview: accepted reader/UI code plus preserved local evidence at `8b4c179` |
@@ -80,11 +80,20 @@ Do not combine these steps in one branch or PR.
 
 ## 4. Ordered feature backlog
 
-Current priority (2026-09-21): finish automated checks for the MangaFire repair,
-then supply a combined KindleHF preview for manual copying and device testing.
+Current priority (2026-09-21): Corvin manually installs and tests the combined
+KindleHF preview for the MangaFire repair, following the linked guide.
 Keep this fix separate from still-open reader/UI PRs #34 and #35. No merge or
 release is part of the current handoff. Further UI tuning stays deferred and
 MangaKatana Server 3 remains the accepted setting.
+
+Isolated repair: [fork PR #36](https://github.com/kravenos/krakuyomi/pull/36),
+draft pending Kindle acceptance. Combined candidate `1.41.4+ci.94.4f6190c` is
+available as [kindlehf build](https://github.com/kravenos/krakuyomi/actions/runs/35637875528/artifacts/10657483211).
+KindleHF, Rust CI and Lua CI passed. The wider build is not fully green: three
+Android jobs failed during SDK setup before app compilation; other platform
+jobs were still running at this handoff. No release or merge was performed.
+Local Lua 5.1 and LuaJIT checks each pass all 26 tests. The guide is
+[manual installation and retest](docs/verification/2026-09-21-mangafire-kindle-install.md).
 
 See [MangaFire compatibility contract and checks](docs/verification/2026-09-21-mangafire-compatibility.md)
 and [offline diagnosis](docs/verification/2026-09-21-mangafire-diagnosis.md).
